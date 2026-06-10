@@ -1,6 +1,6 @@
 import { pixelText, button, COLORS } from '../ui/widgets.js';
 import { getRun } from '../core/runState.js';
-import { usePotion, rollDrops, ITEM_TEMPLATES } from '../data/items.js';
+import { usePotion, rollDrops, ITEM_TEMPLATES, rarityColor, sellPrice } from '../data/items.js';
 import { PartyPanel } from '../ui/partyPanel.js';
 import { addRulesButton } from '../ui/rulesPanel.js';
 
@@ -193,6 +193,7 @@ export default class MapScene extends Phaser.Scene {
   showShop(n) {
     const { width: W, height: H } = this.scale;
     this._clearOv();
+    this._shopSellMode = false;
 
     // 隨機 3 件商品（不重複）
     const pool = [...ITEM_TEMPLATES];
@@ -202,19 +203,23 @@ export default class MapScene extends Phaser.Scene {
       const it = this.run.rng.pick(pool);
       if (!seen.has(it.id)) { seen.add(it.id); wares.push(it); }
     }
-    const price = (it) => it.rarity === 'rare' ? 60 : it.rarity === 'uncommon' ? 35 : 18;
+    const buyPrice = (it) => it.rarity === 'rare' ? 60 : it.rarity === 'uncommon' ? 35 : 18;
 
-    const panelH = 420;
-    const py = H / 2;
+    const panelH = H - 60;
+    const py = H / 2 + 10;
+    const panelTop = py - panelH / 2;
+
     this._ov.push(
       this.add.rectangle(W / 2, py, W - 16, panelH, 0x111133, 0.96).setStrokeStyle(2, 0x885522).setDepth(500),
-      pixelText(this, W / 2, py - panelH / 2 + 22, '🏪 商店', 22, '#ffaa44').setDepth(501),
-      pixelText(this, W / 2, py - panelH / 2 + 46, `💰 ${this.run.gold}G`, 14, '#ffcc44').setDepth(501)
+      pixelText(this, W / 2, panelTop + 22, '🏪 商店', 20, '#ffaa44').setDepth(501),
+      pixelText(this, W / 2, panelTop + 44, `💰 ${this.run.gold} G`, 13, '#ffcc44').setDepth(501),
     );
 
+    // ── 購買區 ──────────────────────────────────────────
+    this._ov.push(pixelText(this, W / 2, panelTop + 66, '── 購買 ──', 11, '#888899').setDepth(501));
     wares.forEach((item, i) => {
-      const iy = py - 110 + i * 88;
-      const p = price(item);
+      const iy = panelTop + 96 + i * 72;
+      const p = buyPrice(item);
       const canBuy = this.run.gold >= p && (this.run.inventory || []).length < 12;
       const btn = button(this, W / 2, iy,
         `${item.name}  ${item.desc}  [${p}G]`,
@@ -224,18 +229,46 @@ export default class MapScene extends Phaser.Scene {
           this.run.inventory.push({ ...item, uid: `shop_${Date.now()}_${i}` });
           this._clearOv();
           this.toast(`購入 ${item.name}`);
-          this.advanceTo(n);
+          this.showShop(n);
         },
-        { w: W - 36, h: 64, fill: canBuy ? 0x1c2c1c : 0x1c1c1c, size: 12,
+        { w: W - 36, h: 58, fill: canBuy ? 0x1c2c1c : 0x1c1c1c, size: 12,
           color: canBuy ? COLORS.text : '#666688' });
       btn.setDepth(501);
       this._ov.push(btn);
-      this._ov.push(pixelText(this, W - 50, iy - 20, item.rarity, 9, rarityColor(item.rarity)).setDepth(502));
+      this._ov.push(pixelText(this, W - 26, iy, item.rarity, 9, rarityColor(item.rarity)).setDepth(502).setOrigin(1, 0.5));
     });
 
-    const skipBtn = button(this, W / 2, py + panelH / 2 - 30, '離開商店', () => {
+    // ── 賣出區 ──────────────────────────────────────────
+    const sellY = panelTop + 96 + 3 * 72 + 10;
+    this._ov.push(pixelText(this, W / 2, sellY, '── 賣出裝備（售價 ×0.2）──', 11, '#888899').setDepth(501));
+
+    const sellables = (this.run.inventory || []).filter((it) => it.type !== 'potion');
+    if (sellables.length === 0) {
+      this._ov.push(pixelText(this, W / 2, sellY + 24, '（無可賣出的裝備）', 11, COLORS.dim).setDepth(501));
+    } else {
+      sellables.slice(0, 3).forEach((item, i) => {
+        const iy = sellY + 26 + i * 46;
+        const sp = sellPrice(item);
+        const btn = button(this, W / 2, iy,
+          `${item.name}  [售出 +${sp}G]`,
+          () => {
+            const idx = this.run.inventory.findIndex((x) => x.uid === item.uid);
+            if (idx >= 0) this.run.inventory.splice(idx, 1);
+            this.run.gold += sp;
+            this._clearOv();
+            this.toast(`賣出 ${item.name} +${sp}G`);
+            this.showShop(n);
+          },
+          { w: W - 36, h: 38, fill: 0x2c1c1c, size: 12 });
+        btn.setDepth(501);
+        this._ov.push(btn);
+        this._ov.push(pixelText(this, W - 26, iy, rarityColor(item.rarity) ? item.rarity : '', 9, rarityColor(item.rarity)).setDepth(502).setOrigin(1, 0.5));
+      });
+    }
+
+    const skipBtn = button(this, W / 2, py + panelH / 2 - 26, '離開商店', () => {
       this._clearOv(); this.advanceTo(n);
-    }, { w: 160, h: 40, fill: 0x1c1c2c, size: 13 });
+    }, { w: 160, h: 36, fill: 0x1c1c2c, size: 13 });
     skipBtn.setDepth(501);
     this._ov.push(skipBtn);
   }

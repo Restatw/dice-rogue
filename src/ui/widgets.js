@@ -8,12 +8,17 @@ export const COLORS = {
   accent: 0xffcc44, danger: 0xff5566, good: 0x55dd77, mp: 0x5599ff,
 };
 
+// 跟隨裝置實際 DPR，最高 3× 避免記憶體過大
+const TEXT_RES = Math.min(Math.round(window.devicePixelRatio || 2), 3);
+// Zpix 像素字型在 12px 以下難以辨識，統一拉高下限
+const MIN_SIZE = 12;
+
 export function pixelText(scene, x, y, str, size = 16, color = COLORS.text) {
+  const s = Math.max(MIN_SIZE, size);
   return scene.add.text(x, y, str, {
-    fontFamily: FONT, fontSize: `${size}px`, color,
-    resolution: 2,
-    // Phaser 對中日文字常少算字身高度，頂端會被切掉一點 → 補上下內距撐開材質畫布
-    padding: { top: Math.ceil(size * 0.28), bottom: Math.ceil(size * 0.18), left: 2, right: 2 },
+    fontFamily: FONT, fontSize: `${s}px`, color,
+    resolution: TEXT_RES,
+    padding: { top: Math.ceil(s * 0.28), bottom: Math.ceil(s * 0.18), left: 2, right: 2 },
   }).setOrigin(0.5);
 }
 

@@ -11,9 +11,9 @@ export const BALANCE = {
   // 範圍涵蓋 5..30，依序判定。crit 已從原本只有 5/30 放寬到 5–7 / 28–30。
   tiers: [
     { id: 'crit',   label: '幸運暴擊', mult: 3.0, ranges: [[5, 7], [28, 30]] },
-    { id: 'miss',   label: '落空',     mult: 0.0, ranges: [[8, 10], [25, 27]] },
-    { id: 'strong', label: '強力擊中', mult: 1.5, ranges: [[11, 15], [20, 24]] },
-    { id: 'normal', label: '普通擊中', mult: 1.0, ranges: [[16, 19]] },
+    { id: 'miss',   label: '落空',     mult: 0.0, ranges: [[8, 9], [26, 27]] },
+    { id: 'strong', label: '強力擊中', mult: 1.5, ranges: [[10, 12], [23, 25]] },
+    { id: 'normal', label: '普通擊中', mult: 1.0, ranges: [[13, 22]] },
   ],
 
   // ── 暴擊系統二：依「骰型」連線（常見的爽快 proc，與總和暴擊獨立）──────

@@ -18,8 +18,11 @@ export default class BootScene extends Phaser.Scene {
 
     if (document.fonts && document.fonts.load) {
       Promise.all([
+        document.fonts.load('12px "Zpix"'),
+        document.fonts.load('14px "Zpix"'),
         document.fonts.load('16px "Zpix"'),
-        document.fonts.load('32px "Zpix"'),
+        document.fonts.load('20px "Zpix"'),
+        document.fonts.load('24px "Zpix"'),
       ]).then(go).catch(go);
       this.time.delayedCall(3000, go); // 離線/載入失敗保險
     } else {

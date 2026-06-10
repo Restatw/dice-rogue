@@ -3,6 +3,7 @@ import { DiceRoller } from '../ui/dice.js';
 import { SFX } from '../audio/sfx.js';
 import { getRun } from '../core/runState.js';
 import { resolveAttack, resolveGuard, applyResult } from '../core/combat.js';
+import { rollDice, sumOf, classifyTier, detectCombo } from '../core/dice.js';
 import { spawnEncounter } from '../data/enemies.js';
 import { rollDrops, usePotion, equipItem, rarityColor, SLOT_NAME } from '../data/items.js';
 import { PartyPanel } from '../ui/partyPanel.js';
@@ -59,7 +60,8 @@ export default class CombatScene extends Phaser.Scene {
     // ── 骰子區 ─────────────────────────────────────────────
     this.actorTxt = pixelText(this, W / 2, 274, '', 13, COLORS.dim);
     this.dice = new DiceRoller(this, W / 2, 314, { size: 38, gap: 10 });
-    this.infoTxt = pixelText(this, W / 2, 358, '', 13, COLORS.dim);
+    // 多行傷害計算文字：從 dice 底部往下展開，暫時覆蓋 log 區
+    this.infoTxt = pixelText(this, W / 2, 358, '', 12, COLORS.dim).setOrigin(0.5, 0);
 
     // ── 戰鬥紀錄面板 ────────────────────────────────────────
     this.buildLog(W, H);
@@ -92,9 +94,9 @@ export default class CombatScene extends Phaser.Scene {
       const hpNum = pixelText(this, x - box / 2 + 3, y + box / 2 - numSize - 1, `${en.hp}`, numSize, '#88ee99').setOrigin(0, 0.5);
       const atkNum = pixelText(this, x + box / 2 - 3, y + box / 2 - numSize - 1, `⚔${en.atk}`, numSize, '#ff9966').setOrigin(1, 0.5);
       const ui = { enemy: en, x, y, box, sprite, ch, elem, bar, hpNum, atkNum };
-      sprite.on('pointerover', () => { if (this.mode === 'targeting' && en.hp > 0) sprite.setScale(1.08); });
+      sprite.on('pointerover', () => { if ((this.mode === 'choose' || this.mode === 'targeting') && en.hp > 0) sprite.setScale(1.08); });
       sprite.on('pointerout', () => sprite.setScale(1));
-      sprite.on('pointerdown', () => this.onPickTarget(en));
+      sprite.on('pointerdown', () => this._onEnemyClick(en));
       x += slotW;
       return ui;
     });
@@ -107,7 +109,7 @@ export default class CombatScene extends Phaser.Scene {
     const cardW = Math.min(132, spacing - 10);
     const cardH = 130;
     const barW = cardW - 18;
-    const heroY = H - 195;
+    const heroY = H - 270;
 
     this.heroUI = this.heroes.map((h, i) => {
       const x = W / 2 + (i - (n - 1) / 2) * spacing;
@@ -135,7 +137,7 @@ export default class CombatScene extends Phaser.Scene {
 
   // ── 底部按鈕列 ──────────────────────────────────────────
   buildButtons(W, H) {
-    const btnY = H - 55;
+    const btnY = H - 95;
     const btnW = 98;
     const btnH = 48;
     const gap = (W - btnW * 4) / 5;
@@ -153,25 +155,65 @@ export default class CombatScene extends Phaser.Scene {
 
   // ── 紀錄面板 ────────────────────────────────────────────
   buildLog(W, H) {
-    const logY = 382;
-    const logH = 155;
+    const logY = 360;
+    const hdrH = 24;
+    const logH = 200;   // 含 header 總高度
+    const cntH = logH - hdrH;
     const logX = 10;
     const logW = W - 20;
+    const cntY = logY + hdrH;
 
-    // 背景
-    this.logBg = this.add.rectangle(W / 2, logY + logH / 2, logW, logH, 0x111122, 0.88)
-      .setStrokeStyle(1, 0x333355);
+    this._logBaseY  = logY + logH - 4;  // text y 預設值（origin bottom）
+    this._logScrollY = 0;               // 目前捲動偏移（0 = 最新在底部）
+    this._logArea   = { x: logX, y: cntY, w: logW, h: cntH };
 
-    // 文字（6 行，自動截斷）
-    this.logText = this.add.text(logX + 6, logY + 4, '', {
-      fontFamily: FONT, fontSize: '10px', color: '#9a9ab8',
-      wordWrap: { width: logW - 12 }, lineSpacing: 2,
+    // ── 標題列（動畫期間一併隱藏）
+    const hdrBg = this.add.rectangle(W / 2, logY + hdrH / 2, logW, hdrH, 0x181834, 0.95)
+      .setStrokeStyle(1, 0x333366);
+    const hdrTxt = this.add.text(logX + 8, logY + hdrH / 2, '⚔ 戰鬥紀錄', {
+      fontFamily: FONT, fontSize: '12px', color: '#6677bb',
+      padding: { top: 2, bottom: 2, left: 2, right: 2 },
+    }).setOrigin(0, 0.5);
+    this.logToggleBtn = button(this, W - 26, logY + hdrH / 2, '▼', () => this.toggleLog(),
+      { w: 30, h: hdrH - 4, size: 11, fill: 0x181834, edge: 0x333366 });
+    this.logToggleBtn.setAlpha(0.8);
+    this.logHeaderObjs = [hdrBg, hdrTxt, this.logToggleBtn];
+
+    // ── 內容區
+    this.logBg = this.add.rectangle(W / 2, cntY + cntH / 2, logW, cntH, 0x0d0d1f, 0.90)
+      .setStrokeStyle(1, 0x272748);
+
+    // 文字：從底部往上排，確保新條目永遠在最下方
+    this.logText = this.add.text(logX + 6, this._logBaseY, '', {
+      fontFamily: FONT, fontSize: '11px', color: '#9090b8',
+      wordWrap: { width: logW - 12 }, lineSpacing: 3,
       padding: { top: 2, bottom: 2, left: 0, right: 0 },
-    }).setOrigin(0, 0);
+    }).setOrigin(0, 1);
 
-    // 顯示/隱藏切換按鈕
-    this.logToggleBtn = button(this, W - 38, logY - 10, '▼', () => this.toggleLog(), { w: 36, h: 22, size: 12 });
-    this.logToggleBtn.setAlpha(0.7);
+    // Geometry mask：裁切超出內容區的文字
+    const maskGfx = this.make.graphics({ add: false });
+    maskGfx.fillRect(logX, cntY, logW, cntH);
+    this.logText.setMask(maskGfx.createGeometryMask());
+
+    // 滾輪捲動（指標在紀錄區上方才生效）
+    this.input.on('wheel', (_ptr, _objs, _dx, deltaY) => {
+      if (!this._logVisible) return;
+      const px = this.input.activePointer.worldX;
+      const py = this.input.activePointer.worldY;
+      const a  = this._logArea;
+      if (px >= a.x && px <= a.x + a.w && py >= a.y && py <= a.y + a.h) {
+        this._scrollLog(deltaY);
+      }
+    });
+  }
+
+  _scrollLog(delta) {
+    const lineH = 17; // 11px + lineSpacing 3 + padding ≈ 17px/行
+    const totalLines = this._logEntries.reduce((n, e) => n + (e.detail ? 2 : 1), 0);
+    const maxScroll = Math.max(0, totalLines * lineH - this._logArea.h + 8);
+    // wheel up (delta < 0) → _logScrollY 增加 → text 往下移 → 舊訊息出現
+    this._logScrollY = Phaser.Math.Clamp(this._logScrollY - delta * 0.35, 0, maxScroll);
+    this.logText.y = this._logBaseY + this._logScrollY;
   }
 
   toggleLog() {
@@ -195,7 +237,7 @@ export default class CombatScene extends Phaser.Scene {
     this.nextTurn();
   }
 
-  drawTrack(animate = false) {
+  drawTrack(animate = false, slideSlots = 1) {
     const { width: W } = this.scale;
     this.trackC.removeAll(true);
     const n = this.order.length;
@@ -222,7 +264,8 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     if (animate) {
-      this.trackC.x = chipW + gap;
+      // slideSlots：本次實際跳過幾個位置（含死亡跳格）
+      this.trackC.x = slideSlots * (chipW + gap);
       this.tweens.add({ targets: this.trackC, x: 0, duration: 220, ease: 'Cubic.out' });
     } else {
       this.trackC.x = 0;
@@ -231,15 +274,25 @@ export default class CombatScene extends Phaser.Scene {
 
   nextTurn() {
     while (this.turnIdx < this.order.length && this.order[this.turnIdx].ref.hp <= 0) this.turnIdx++;
-    if (this.turnIdx >= this.order.length) return this.startRound();
-    this.drawTrack(this.turnIdx > 0);
+    if (this.turnIdx >= this.order.length) {
+      this._slideFrom = undefined;
+      return this.startRound();
+    }
+    // 計算從 advanceTurn 的起點到現在跳了幾格（含死亡跳格）
+    const slideSlots = (this._slideFrom !== undefined) ? (this.turnIdx - this._slideFrom) : 0;
+    this._slideFrom = undefined;
+    this.drawTrack(slideSlots > 0, slideSlots);
     const cur = this.order[this.turnIdx];
     SFX.turn();
     if (cur.side === 'hero') this.promptHero(cur.ref);
     else this.enemyAct(cur.ref);
   }
 
-  advanceTurn() { this.turnIdx++; this.nextTurn(); }
+  advanceTurn() {
+    this._slideFrom = this.turnIdx; // 記錄動畫起點（advanceTurn 前的位置）
+    this.turnIdx++;
+    this.nextTurn();
+  }
 
   // ── 角色回合 ────────────────────────────────────────────
   promptHero(hero) {
@@ -264,6 +317,15 @@ export default class CombatScene extends Phaser.Scene {
     this.itemBtn.setAlpha(hasPotions ? 1 : 0.38);
     if (hasPotions) this.itemBtn.setInteractive({ useHandCursor: true });
     else this.itemBtn.disableInteractive();
+
+    // 預設選取目標（有多個敵人才顯示游標）
+    const alive = this.aliveEnemies();
+    if (alive.length > 0) {
+      if (!this._atkTarget || this._atkTarget.hp <= 0) this._atkTarget = alive[0];
+      this._refreshChooseHighlights();
+      if (alive.length > 1) this._showTargetCursor();
+      else this._clearTargetCursor();
+    }
   }
 
   showButtons(on) {
@@ -282,37 +344,62 @@ export default class CombatScene extends Phaser.Scene {
     if (this.busy || this.mode !== 'choose') return;
     const alive = this.aliveEnemies();
     if (!alive.length) return;
-    if (alive.length <= 1) return this.doHeroAttack(alive[0]);
-    this.mode = 'targeting';
-    this.showButtons(false);
-    this.cancelBtn.setVisible(true); this.cancelBtn.setEnabledState(true);
-    this.actorTxt.setText('選擇攻擊目標');
-    this.actorTxt.setColor('#ffcc44');
-    this.highlightTargets(true);
+    // 直接打預選目標（或唯一存活敵人），不再需要二次選擇
+    const target = (this._atkTarget && this._atkTarget.hp > 0) ? this._atkTarget : alive[0];
+    this._clearTargetCursor();
+    this._disableEnemyChoose();
+    this.doHeroAttack(target);
   }
 
-  highlightTargets(on) {
-    for (const u of this.enemyUI) {
-      if (u.enemy.hp <= 0) continue;
-      u.sprite.setStrokeStyle(on ? 3 : 2, on ? 0xffcc44 : 0x884466);
-      if (on) u.sprite.setInteractive({ useHandCursor: true }); else u.sprite.disableInteractive();
+  // 選擇階段點擊敵人：切換目標
+  _onEnemyClick(enemy) {
+    if (enemy.hp <= 0) return;
+    if (this.mode === 'choose') {
+      this._atkTarget = enemy;
+      this._showTargetCursor();
+      this._refreshChooseHighlights();
     }
   }
 
-  cancelTargeting() {
-    this.mode = 'choose';
-    this.highlightTargets(false);
-    this.cancelBtn.setVisible(false);
-    this.showButtons(true);
-    this.actorTxt.setText(`▶ ${this.pendingHero.name.split('・')[0]} 的回合`);
-    this.actorTxt.setColor('#ffe08a');
+  // 選擇階段的敵人邊框：選中白色，其他暗紅
+  _refreshChooseHighlights() {
+    for (const u of this.enemyUI) {
+      if (u.enemy.hp <= 0) { u.sprite.disableInteractive(); continue; }
+      u.sprite.setInteractive({ useHandCursor: true });
+      u.sprite.setStrokeStyle(2, this._atkTarget === u.enemy ? 0xffffff : 0x884488);
+    }
   }
 
-  onPickTarget(enemy) {
-    if (this.mode !== 'targeting' || enemy.hp <= 0) return;
-    this.highlightTargets(false);
-    this.cancelBtn.setVisible(false);
-    this.doHeroAttack(enemy);
+  _disableEnemyChoose() {
+    for (const u of this.enemyUI) {
+      u.sprite.disableInteractive();
+      u.sprite.setStrokeStyle(2, 0x884466);
+    }
+  }
+
+  // 顯示 ▼ 游標在預設目標上方
+  _showTargetCursor() {
+    this._clearTargetCursor();
+    if (!this._atkTarget) return;
+    if (this._atkTarget.hp <= 0) {
+      const next = this.aliveEnemies()[0];
+      if (!next) return;
+      this._atkTarget = next;
+    }
+    const u = this.uiOf(this._atkTarget);
+    if (!u) return;
+    const cy = u.y - u.box / 2 - 8;
+    this._cursorTxt = pixelText(this, u.x, cy, '▼', 14, '#ffe066').setDepth(50);
+    this._cursorTween = this.tweens.add({
+      targets: this._cursorTxt, y: cy - 6,
+      duration: 380, ease: 'Sine.inOut', yoyo: true, repeat: -1,
+    });
+    this._refreshChooseHighlights();
+  }
+
+  _clearTargetCursor() {
+    if (this._cursorTween) { this._cursorTween.stop(); this._cursorTween = null; }
+    if (this._cursorTxt)  { this._cursorTxt.destroy(); this._cursorTxt = null; }
   }
 
   async doHeroAttack(enemy) {
@@ -354,21 +441,65 @@ export default class CombatScene extends Phaser.Scene {
     this.advanceTurn();
   }
 
+  // ── SP 技能擲骰動畫（顯示 tier/combo，回傳 effMult）──────
+  async _animateSkillRoll(hero) {
+    const dice = rollDice(this.run.rng);
+    const sum = sumOf(dice);
+    const tier = classifyTier(sum, BALANCE);
+    const combo = detectCombo(dice, BALANCE);
+
+    this.infoTxt.setText('');
+    this.logHeaderObjs.forEach((o) => o.setVisible(false));
+    this.logBg.setVisible(false);
+    this.logText.setVisible(false);
+
+    await this.dice.roll(dice, { color: hero.element.color });
+
+    const ci = this.comboIndices({ dice, combo });
+    if (ci.length) this.dice.flash(ci, 0xffe066);
+    if (tier.id === 'crit' || combo.special) this.cameras.main.shake(260, 0.014);
+    else if (tier.id === 'strong') this.cameras.main.shake(110, 0.006);
+
+    const tierMult = tier.id === 'miss' ? 0.6 : tier.mult;
+    const effMult = tierMult * combo.mult;
+
+    const lines = [
+      `🎲 點數總和 ${sum}  →  ${tier.id === 'miss' ? '落空 ×0.6（技能仍發動）' : `${tier.label} ×${tierMult.toFixed(1)}`}`,
+    ];
+    if (combo.id !== 'none') lines.push(`✦ ${combo.label}  ×${combo.mult.toFixed(1)}`);
+
+    for (let i = 0; i < lines.length; i++) {
+      this.infoTxt.setText(lines.slice(0, i + 1).join('\n'));
+      await this.wait(i < lines.length - 1 ? 260 : 120);
+    }
+
+    return { dice, sum, tier, combo, effMult };
+  }
+
+  _appendInfo(line) {
+    const cur = this.infoTxt.text;
+    this.infoTxt.setText(cur ? `${cur}\n${line}` : line);
+  }
+
   async doSpSkill(hero) {
     const skillId = hero.class.skill?.id;
     const skillName = hero.class.skill?.name || '技能';
     this.actorTxt.setText(`✦ ${hero.name.split('・')[0]} 發動 ${skillName}！`);
     this.actorTxt.setColor('#ffaa44');
     this.flashScreen(0xffaa44, 0.3);
-    await this.wait(400);
+    await this.wait(280);
 
+    const roll = await this._animateSkillRoll(hero);
     const alive = this.aliveEnemies();
-    if (!alive.length) return;
+    if (!alive.length) { this._restoreLog(); return; }
 
     if (skillId === 'warrior_slash') {
-      // 對所有敵人造成 120% 攻擊傷害
+      // 對所有敵人造成 120% × roll.effMult 攻擊傷害
+      const sample = Math.max(1, Math.round(hero.atk * 1.2 * roll.effMult));
+      this._appendInfo(`⚔ ${hero.atk} × 1.2 × ${roll.effMult.toFixed(2)} = ${sample}`);
+      await this.wait(200);
       for (const en of alive) {
-        const dmg = Math.max(1, Math.round(hero.atk * 1.2));
+        const dmg = Math.max(1, Math.round(hero.atk * 1.2 * roll.effMult));
         en.hp = Math.max(0, en.hp - dmg);
         const u = this.uiOf(en);
         this.hitFlash(u.sprite);
@@ -379,10 +510,10 @@ export default class CombatScene extends Phaser.Scene {
         await this.wait(160);
       }
     } else if (skillId === 'mage_blast') {
-      // 對所有敵人 150% 魔法傷害（用角色元素剋制）
+      // 對所有敵人 150% × roll.effMult 魔法傷害（元素剋制額外疊加）
       for (const en of alive) {
         const eMult = elementMatchup(hero.element, en.element, BALANCE);
-        const dmg = Math.max(1, Math.round(hero.atk * 1.5 * eMult));
+        const dmg = Math.max(1, Math.round(hero.atk * 1.5 * roll.effMult * eMult));
         en.hp = Math.max(0, en.hp - dmg);
         const u = this.uiOf(en);
         const color = Phaser.Display.Color.HexStringToColor(hero.element.color).color;
@@ -394,11 +525,11 @@ export default class CombatScene extends Phaser.Scene {
         await this.wait(160);
       }
     } else if (skillId === 'rogue_quad') {
-      // 對單體連擊 4 次，每次 60% 傷害
+      // 對單體連擊 4 次，每次 60% × roll.effMult 傷害
       const target = alive[0];
       const u = this.uiOf(target);
       for (let i = 0; i < 4 && target.hp > 0; i++) {
-        const dmg = Math.max(1, Math.round(hero.atk * 0.6));
+        const dmg = Math.max(1, Math.round(hero.atk * 0.6 * roll.effMult));
         target.hp = Math.max(0, target.hp - dmg);
         SFX.hit();
         this.hitFlash(u.sprite);
@@ -409,9 +540,9 @@ export default class CombatScene extends Phaser.Scene {
         await this.wait(130);
       }
     } else if (skillId === 'priest_heal') {
-      // 治療全隊 40% maxHp
+      // 治療全隊 40% × roll.effMult maxHp
       for (const h of this.heroes.filter((h) => h.hp > 0)) {
-        const heal = Math.round(h.maxHp * 0.4);
+        const heal = Math.round(h.maxHp * 0.4 * roll.effMult);
         h.hp = Math.min(h.maxHp, h.hp + heal);
         const u = this.uiOf(h);
         SFX.heal();
@@ -423,6 +554,7 @@ export default class CombatScene extends Phaser.Scene {
       }
     }
     await this.wait(300);
+    this._restoreLog();
   }
 
   // ── 道具使用（戰鬥中：用 PartyPanel，使用後不消耗回合） ──
@@ -464,20 +596,21 @@ export default class CombatScene extends Phaser.Scene {
     const res = resolveAttack(attacker, defender, this.run.rng);
     await this.animateRoll(res);
     const elemColor = Phaser.Display.Color.HexStringToColor(res.element.color).color;
+    const atkUI = this.uiOf(attacker);
 
-    // 治療（祭司）
+    // 治療（祭司 SP 以外不應出現，保留作為安全網）
     if (res.heal) {
       applyResult(res, defender, this.heroes);
       SFX.heal();
-      const u = this.uiOf(attacker);
-      this.burst(u.x, u.y, 0x66dd88, 10);
-      this.showFloat(u.x, u.y - 24, `+${res.heal}`, '#66dd88', 22);
+      this.burst(atkUI.x, atkUI.y, 0x66dd88, 10);
+      this.showFloat(atkUI.x, atkUI.y - 24, `+${res.heal}`, '#66dd88', 22);
       this.log(
         `${res.attacker} 聖光 → ${res.heal} HP`,
         `🎲[${res.dice.join(' ')}]=${res.sum} ${res.tier.label}`
       );
       this.refresh();
-      await this.wait(260);
+      await this.wait(200);
+      this._restoreLog();
       return res;
     }
 
@@ -501,14 +634,22 @@ export default class CombatScene extends Phaser.Scene {
       const dy = tUI.box ? tUI.box / 2 : 30;
 
       if (dmg > 0 || guarded) {
+        // 傷害數字從攻擊者飛向防守者
+        const flyX = atkUI ? atkUI.x : tUI.x;
+        const flyY = atkUI ? atkUI.y : tUI.y - dy - 40;
+        const offsetX = hits > 1 ? (h - (hits - 1) / 2) * 14 : 0;
+        const numColor = crit ? '#ffdd33' : (guarded ? '#66ccff' : '#ff7766');
+        const numSize  = crit ? 34 : 28;
+        await this.flyNumber(flyX, flyY, tUI.x + offsetX, tUI.y - dy,
+          `${dmg}${guarded ? '(檔)' : ''}`, numColor, numSize);
+
+        // 飛到後觸發衝擊
         target.hp = Math.max(0, target.hp - dmg);
         (crit && h === 0) ? SFX.crit() : SFX.hit();
         this.hitFlash(tUI.sprite || tUI.card);
         this.burst(tUI.x, tUI.y, elemColor, crit ? 20 : 10);
         if (crit && h === 0) this.flashScreen();
-        this.showFloat(tUI.x + (hits > 1 ? (h - (hits - 1) / 2) * 12 : 0),
-          tUI.y - dy - (hits > 1 ? h * 4 : 0),
-          `${dmg}${guarded ? '(檔)' : ''}`, crit ? '#ffdd33' : '#ff7766', crit ? 26 : 21);
+
         const tagCombo = res.combo.id !== 'none' ? ` ${res.combo.label}` : '';
         const tagElem  = res.elementMult > 1 ? '▲' : (res.elementMult < 1 ? '▽' : '');
         this.log(
@@ -521,10 +662,21 @@ export default class CombatScene extends Phaser.Scene {
         this.log(`${res.attacker} 落空`, `🎲[${res.dice.join(' ')}]=${res.sum} ${res.tier.label}`);
       }
       this.refresh();
-      if (h < hits - 1) await this.wait(190);
+      if (h < hits - 1) await this.wait(160);
     }
-    await this.wait(230);
+    await this.wait(180);
+    this._restoreLog();
     return res;
+  }
+
+  // log 面板恢復顯示（攻擊動畫結束後呼叫）
+  _restoreLog() {
+    this.logHeaderObjs.forEach((o) => o.setVisible(true));
+    if (this._logVisible) {
+      this.logBg.setVisible(true);
+      this.logText.setVisible(true);
+    }
+    this.infoTxt.setText('');
   }
 
   // ── 格檔 ────────────────────────────────────────────────
@@ -548,6 +700,7 @@ export default class CombatScene extends Phaser.Scene {
       this.log(`${hero.name.split('・')[0]} 格檔 減傷${pct}%`, `🎲[${res.dice.join(' ')}]=${res.sum} ${res.tier.label}`);
     }
     await this.wait(280);
+    this._restoreLog();
   }
 
   updateGuardIcon(hero) {
@@ -582,13 +735,58 @@ export default class CombatScene extends Phaser.Scene {
   // ── 動畫工具 ────────────────────────────────────────────
   async animateRoll(res, isGuard = false) {
     this.infoTxt.setText('');
+    // 骰子動畫期間暫時收起 log（含標題列），讓計算步驟有完整空間
+    this.logHeaderObjs.forEach((o) => o.setVisible(false));
+    this.logBg.setVisible(false);
+    this.logText.setVisible(false);
     await this.dice.roll(res.dice, { color: res.element.color });
     const ci = this.comboIndices(res);
     if (ci.length) this.dice.flash(ci, 0xffe066);
-    this.showRoll(res, isGuard);
     if (res.tier.id === 'crit' || res.special) this.cameras.main.shake(260, 0.014);
     else if (res.tier.id === 'strong') this.cameras.main.shake(110, 0.006);
-    await this.wait(ci.length ? 360 : 150);
+    await this.showCalcSteps(res, isGuard);
+  }
+
+  // 逐行顯示計算步驟（每行有停頓，讓玩家能看到過程）
+  async showCalcSteps(res, isGuard) {
+    const lines = [];
+
+    if (isGuard) {
+      const pct = Math.round((1 - res.remain) * 100);
+      lines.push(`🎲 點數總和 ${res.sum}  →  ${res.tier.label}`);
+      if (res.combo.id !== 'none') lines.push(`✦ ${res.combo.label}`);
+      lines.push(res.remain === 0 ? '🛡 完美格檔！傷害全擋' : `🛡 格檔減傷 ${pct}%`);
+    } else if (res.tier.id === 'miss') {
+      lines.push(`🎲 點數總和 ${res.sum}  →  落空`);
+      lines.push('— 攻擊未命中 —');
+    } else {
+      lines.push(`🎲 點數總和 ${res.sum}  →  ${res.tier.label} ×${res.tier.mult.toFixed(1)}`);
+      if (res.combo.id !== 'none') {
+        lines.push(`✦ ${res.combo.label}  ×${res.combo.mult.toFixed(1)}`);
+      }
+      if (res.classNote) {
+        lines.push(`💠 ${res.classNote}`);
+      }
+      if (res.elementMult !== 1.0) {
+        const tag = res.elementMult > 1 ? '▲ 克制' : '▽ 抗性';
+        lines.push(`${res.element.name} ${tag}  ×${res.elementMult.toFixed(1)}`);
+      }
+      // 最終傷害行：展示完整算式
+      const mults = [res.tier.mult];
+      if (res.combo.id !== 'none') mults.push(res.combo.mult);
+      if (res.scaledMult && res.scaledMult !== 1.0) mults.push(res.scaledMult);
+      if (res.elementMult !== 1.0) mults.push(res.elementMult);
+      const formula = mults.length > 1
+        ? `${res.atk} × ${mults.map((m) => m.toFixed(1)).join(' × ')}`
+        : `${res.atk} × ${mults[0].toFixed(1)}`;
+      const isCrit = res.tier.id === 'crit';
+      lines.push(`${isCrit ? '💥 暴擊！' : '⚔ '}${formula} = ${res.damage}`);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      this.infoTxt.setText(lines.slice(0, i + 1).join('\n'));
+      await this.wait(i < lines.length - 1 ? 260 : 140);
+    }
   }
 
   burst(x, y, color, n = 12) {
@@ -611,16 +809,23 @@ export default class CombatScene extends Phaser.Scene {
 
   // ── 紀錄系統 ────────────────────────────────────────────
   log(summary, detail = '') {
-    this._logEntries.push({ summary, detail });
-    if (this._logEntries.length > 20) this._logEntries.shift();
+    const s = (summary != null && summary !== '') ? String(summary) : null;
+    if (!s) return; // 過濾空值或 undefined
+    const d = detail != null ? String(detail) : '';
+    this._logEntries.push({ summary: s, detail: d });
+    if (this._logEntries.length > 40) this._logEntries.shift();
+    // 新訊息進來：捲動重置回底部（顯示最新）
+    this._logScrollY = 0;
+    if (this.logText) this.logText.y = this._logBaseY;
     this._renderLog();
   }
 
   _renderLog() {
-    const recent = this._logEntries.slice(-8);
-    const lines = recent.flatMap((e) => e.detail ? [e.summary, `  ${e.detail}`] : [e.summary]);
-    // 只顯示最後 10 行
-    this.logText.setText(lines.slice(-10).join('\n'));
+    const lines = this._logEntries
+      .flatMap((e) => e.detail ? [e.summary, `  ${e.detail}`] : [e.summary])
+      .filter(Boolean);
+    this.logText.setText(lines.join('\n'));
+    if (this.logText) this.logText.y = this._logBaseY + (this._logScrollY || 0);
   }
 
   refresh() {
@@ -638,19 +843,6 @@ export default class CombatScene extends Phaser.Scene {
     }
   }
 
-  showRoll(res, isGuard) {
-    const tag = res.combo.id !== 'none' ? `  ${res.combo.label}` : '';
-    if (isGuard) {
-      const pct = Math.round((1 - res.remain) * 100);
-      this.infoTxt.setText(`格檔  總和${res.sum} ${res.tier.label}${tag} → 減傷${pct}%`);
-      this.infoTxt.setColor(res.remain === 0 ? '#66ccff' : '#cfe0ff');
-      return;
-    }
-    const cr = res.elementMult > 1 ? ' ▲克制' : (res.elementMult < 1 ? ' ▽抗性' : '');
-    this.infoTxt.setText(`總和${res.sum} ${res.element.name} ${res.tier.label}${tag}${cr}`);
-    this.infoTxt.setColor(res.tier.id === 'crit' ? '#ffdd33' : (res.tier.id === 'miss' ? '#8888aa' : '#e8e8f0'));
-  }
-
   comboIndices(res) {
     const d = res.dice;
     if (res.combo.id === 'straight') return d.map((_, i) => i);
@@ -659,6 +851,27 @@ export default class CombatScene extends Phaser.Scene {
     let best = null, bestC = 0;
     for (const k in counts) if (counts[k] > bestC) { bestC = counts[k]; best = +k; }
     return bestC >= 3 ? d.map((v, i) => (v === best ? i : -1)).filter((i) => i >= 0) : [];
+  }
+
+  // 傷害數字從攻擊者位置飛向防守者，落地後觸發衝擊並淡出
+  flyNumber(fromX, fromY, toX, toY, text, color = '#ff7766', size = 30) {
+    return new Promise((resolve) => {
+      const t = pixelText(this, fromX, fromY, text, size, color)
+        .setDepth(1001).setScale(1.4);
+      t.setStroke('#000000', 5);
+      this.tweens.add({
+        targets: t, x: toX, y: toY - 16, scale: 1.0,
+        duration: 300, ease: 'Quad.out',
+        onComplete: () => {
+          resolve();
+          this.tweens.add({
+            targets: t, alpha: 0, y: toY - 52, scale: 1.25,
+            duration: 480, delay: 140, ease: 'Cubic.in',
+            onComplete: () => t.destroy(),
+          });
+        },
+      });
+    });
   }
 
   showFloat(x, y, text, color, size = 22) {

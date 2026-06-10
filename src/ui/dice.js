@@ -118,4 +118,6 @@ export class DiceRoller {
   }
 
   setVisible(v) { this.dice.forEach((d) => d.container.setVisible(v)); }
+
+  destroy() { this.dice.forEach((d) => { if (d.container) d.container.destroy(); }); }
 }

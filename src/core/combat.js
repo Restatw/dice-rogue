@@ -1,7 +1,7 @@
 // 戰鬥引擎（純邏輯，不碰 Phaser）。一次攻擊 = 丟 5d6 → 分級 → 連線 → 職業縮放
-// → 奇偶剋制 → 算出傷害 / 治療。回傳完整 result 供畫面播動畫。
+// → 元素剋制 → 算出傷害。回傳完整 result 供畫面播動畫。
 import { BALANCE } from '../data/balance.js';
-import { rollDice, sumOf, parityOf, countEven, countOdd, classifyTier, detectCombo } from './dice.js';
+import { rollDice, sumOf, classifyTier, detectCombo } from './dice.js';
 import { elementMatchup } from '../data/elements.js';
 
 // attacker: 我方角色 { class, atk, element... } 或 怪物 { isEnemy, atk, element }
@@ -9,17 +9,11 @@ import { elementMatchup } from '../data/elements.js';
 export function resolveAttack(attacker, defender, rng, balance = BALANCE) {
   const dice = rollDice(rng);
   const sum = sumOf(dice);
-  const parity = parityOf(sum);
-  const attackElement = attacker.element;            // 屬性依「攻擊者」決定
+  const attackElement = attacker.element;
   const tier = classifyTier(sum, balance);
   const combo = detectCombo(dice, balance);
 
-  const ctx = {
-    dice, sum, parity,
-    evenCount: countEven(dice),
-    oddCount: countOdd(dice),
-    tier, combo, element: attackElement,
-  };
+  const ctx = { dice, sum, tier, combo, element: attackElement };
 
   // 職業縮放（怪物沒有 class → 視為 1.0）
   const cls = attacker.class;
@@ -31,22 +25,18 @@ export function resolveAttack(attacker, defender, rng, balance = BALANCE) {
   const result = {
     attacker: attacker.name,
     defender: defender.name,
-    dice, sum, parity,
+    dice, sum,
     tier, combo,
     element: attackElement,
     defElement: defender.element,
     elementMult,
     classNote: scaled.note || '',
+    atk: attacker.atk || 0,
+    scaledMult: scaled.mult ?? 1.0,
     damage: 0,
     heal: 0,
     special: !!combo.special,
   };
-
-  // 祭司奇數型態：治療而非輸出
-  if (scaled.heal) {
-    result.heal = Math.round(scaled.heal * elementMult);
-    return result;
-  }
 
   if (tier.id === 'miss') {
     result.damage = 0;

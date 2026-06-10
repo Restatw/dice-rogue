@@ -31,25 +31,38 @@ export const ITEM_TEMPLATES = [
 const RARITY_COLOR = { common: '#aaaaaa', uncommon: '#66ccff', rare: '#ffaa33' };
 export function rarityColor(r) { return RARITY_COLOR[r] || '#ffffff'; }
 
+// 裝備原始售價（賣出時取 × 0.2）
+export const ITEM_BASE_PRICE = { common: 18, uncommon: 35, rare: 60 };
+export function sellPrice(item) { return Math.max(1, Math.round((ITEM_BASE_PRICE[item.rarity] || 18) * 0.2)); }
+
 // ── 戰鬥後掉落 ──────────────────────────────────────────────────────────────
 export function rollDrops(rng, nodeType) {
   const drops = [];
-  const potionChance = nodeType === 'boss' ? 1.0 : nodeType === 'elite' ? 0.65 : 0.38;
-  const equipChance  = nodeType === 'boss' ? 0.85 : nodeType === 'elite' ? 0.48 : 0.20;
-
   const potions = ITEM_TEMPLATES.filter((i) => i.type === 'potion');
   const equips  = ITEM_TEMPLATES.filter((i) => i.type !== 'potion');
 
+  // 藥水掉落
+  const potionChance = nodeType === 'boss' ? 1.0 : nodeType === 'elite' ? 0.72 : 0.50;
   if (rng.next() < potionChance) {
     const pool = nodeType === 'boss' ? potions : potions.filter((p) => p.rarity !== 'rare');
     drops.push({ ...rng.pick(pool), uid: uid() });
   }
+
+  // 裝備掉落（普通戰也可掉 uncommon）
+  const equipChance = nodeType === 'boss' ? 1.0 : nodeType === 'elite' ? 0.70 : 0.40;
   if (rng.next() < equipChance) {
-    const pool = nodeType === 'boss' ? equips.filter((e) => e.rarity !== 'common')
+    const pool = nodeType === 'boss'  ? equips.filter((e) => e.rarity !== 'common')
                : nodeType === 'elite' ? equips.filter((e) => e.rarity !== 'rare')
-               : equips.filter((e) => e.rarity === 'common');
+               : equips;  // 普通戰：全裝備池（common 比例自然較高）
     if (pool.length) drops.push({ ...rng.pick(pool), uid: uid() });
   }
+
+  // BOSS 額外掉一件裝備
+  if (nodeType === 'boss') {
+    const rarePool = equips.filter((e) => e.rarity === 'rare');
+    if (rarePool.length) drops.push({ ...rng.pick(rarePool), uid: uid() });
+  }
+
   return drops;
 }
 

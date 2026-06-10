@@ -13,6 +13,7 @@ export default class EventScene extends Phaser.Scene {
   init(data) {
     this.nodeId   = data.nodeId;
     this.nodeType = data.nodeType || 'event';
+    this._choosing = false;  // 每次進場景都重置，避免舊狀態殘留卡住
   }
 
   create() {
@@ -81,49 +82,53 @@ export default class EventScene extends Phaser.Scene {
     this._choosing = true;
     this._clearObjs();
 
-    if (!opt.roll) {
-      // 無需骰子：直接套用效果
-      this._applyEffect(opt.successEffect);
-      this._showResult(opt.successMsg, true, opt.successEffect);
-      return;
-    }
+    try {
+      if (!opt.roll) {
+        this._applyEffect(opt.successEffect);
+        this._showResult(opt.successMsg, true, opt.successEffect);
+        return;
+      }
 
-    // 骰子動畫
-    const { width: W, height: H } = this.scale;
-    this._objs.push(pixelText(this, W / 2, 80, '擲骰判定中…', 18, '#aabbff'));
+      // 骰子動畫
+      const { width: W } = this.scale;
+      this._objs.push(pixelText(this, W / 2, 80, '擲骰判定中…', 18, '#aabbff'));
+      this.dice = new DiceRoller(this, W / 2, 200, { size: 44, gap: 11 });
 
-    this.dice = new DiceRoller(this, W / 2, 200, { size: 44, gap: 11 });
+      const rolledDice = rollDice(this.run.rng);
+      await this.dice.roll(rolledDice, { color: '#88aaff' });
 
-    const rolledDice = rollDice(this.run.rng);
-    await this.dice.roll(rolledDice, { color: '#88aaff' });
+      const rawSum     = rolledDice.reduce((s, v) => s + v, 0);
+      const autoSuccess = sumBonus >= 999;
+      const effBonus   = autoSuccess ? 0 : sumBonus;
+      const success    = autoSuccess || checkCondition(opt.condition, rolledDice, effBonus);
 
-    const rawSum  = rolledDice.reduce((s, v) => s + v, 0);
-    const effBonus = sumBonus >= 999 ? 0 : sumBonus; // autoSuccess → bonus not shown numerically
-    const autoSuccess = sumBonus >= 999;
-    const success = autoSuccess || checkCondition(opt.condition, rolledDice, effBonus);
+      // 顯示骰子總和
+      const sumLabel = autoSuccess
+        ? `[${rolledDice.join(' ')}] = ${rawSum}  ✦ 職業特效：必定成功！`
+        : `[${rolledDice.join(' ')}] = ${rawSum}${effBonus > 0 ? ` (+${effBonus})` : ''} = ${rawSum + effBonus}`;
+      this._objs.push(pixelText(this, W / 2, 260, sumLabel, 13, '#cce0ff'));
 
-    // 顯示總和
-    const sumLabel = autoSuccess
-      ? `[${rolledDice.join(' ')}] = ${rawSum}  ✦ 職業特效：必定成功！`
-      : `[${rolledDice.join(' ')}] = ${rawSum}${effBonus > 0 ? ` (+${effBonus})` : ''} = ${rawSum + effBonus}`;
-    this._objs.push(pixelText(this, W / 2, 260, sumLabel, 13, '#cce0ff'));
+      const condLabel = opt.condition ? conditionDesc(opt.condition) : '';
+      this._objs.push(pixelText(this, W / 2, 282, `條件：${condLabel}`, 12, '#8888aa'));
 
-    const condLabel = opt.condition ? conditionDesc(opt.condition) : '';
-    this._objs.push(pixelText(this, W / 2, 282, `條件：${condLabel}`, 12, '#8888aa'));
+      const resultColor = success ? '#66ee88' : '#ff6666';
+      this._objs.push(pixelText(this, W / 2, 312, success ? '✓ 判定成功！' : '✗ 判定失敗', 20, resultColor));
 
-    // 結果
-    const resultColor = success ? '#66ee88' : '#ff6666';
-    const resultLabel = success ? '✓ 判定成功！' : '✗ 判定失敗';
-    this._objs.push(pixelText(this, W / 2, 312, resultLabel, 20, resultColor));
-
-    if (success) {
-      this._applyEffect(opt.successEffect);
-      await this._wait(400);
-      this._showResult(opt.successMsg, true, opt.successEffect);
-    } else {
-      this._applyEffect(opt.failEffect);
-      await this._wait(400);
-      this._showResult(opt.failMsg, false, opt.failEffect);
+      if (success) {
+        this._applyEffect(opt.successEffect);
+        await this._wait(400);
+        this._showResult(opt.successMsg, true, opt.successEffect);
+      } else {
+        this._applyEffect(opt.failEffect);
+        await this._wait(400);
+        this._showResult(opt.failMsg, false, opt.failEffect);
+      }
+    } catch (err) {
+      // 任何例外都重置狀態，恢復選項頁讓玩家重試
+      console.error('[EventScene] _chooseOption error:', err);
+      this._choosing = false;
+      this._clearObjs();
+      this._showEvent();
     }
   }
 
@@ -235,6 +240,7 @@ export default class EventScene extends Phaser.Scene {
   _clearObjs() {
     this._objs.forEach((o) => { if (o && o.destroy) o.destroy(); });
     this._objs = [];
+    if (this.dice) { this.dice.destroy(); this.dice = null; }
   }
 
   _wait(ms) { return new Promise((r) => this.time.delayedCall(ms, r)); }

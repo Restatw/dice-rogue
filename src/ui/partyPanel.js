@@ -154,55 +154,48 @@ export class PartyPanel {
       pixelText(scene, panelCx - panelW / 2 + 18, rowCy + 9, item.desc, 9, COLORS.dim).setDepth(602).setOrigin(0, 0.5)
     );
 
-    if (item.type === 'potion') {
-      // 藥水：使用按鈕（治療血量最低的存活角色）
-      const useBtn = button(scene, panelCx + panelW / 2 - 38, rowCy, '使用', () => {
-        const idx2 = (this.run.inventory || []).findIndex((i) => i.uid === item.uid);
-        if (idx2 >= 0) {
-          const target = this.run.party
-            .filter((h) => h.hp > 0)
-            .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
-          if (target) {
-            const heal = usePotion(target, item);
-            this.run.inventory.splice(idx2, 1);
-            this._toast(`${target.name.split('・')[0]} 回復 ${heal} HP`);
-          }
-        }
-        this._build();
-      }, { w: 58, h: 34, fill: 0x1c3c1c, size: 12 });
-      useBtn.setDepth(603);
-      this._objs.push(useBtn);
-    } else {
-      // 裝備：點擊選取，再點英雄卡裝備
-      const selBtn = button(scene, panelCx + panelW / 2 - 38, rowCy,
-        isSelected ? '✓選中' : '裝備', () => {
-          this._selectedItem = isSelected ? null : item;
-          this._build();
-        }, { w: 64, h: 34, fill: isSelected ? 0x224422 : 0x222244, size: 12 });
-      selBtn.setDepth(603);
-      this._objs.push(selBtn);
-    }
+    // 藥水與裝備皆走「選取 → 點英雄卡」流程
+    const isPot = item.type === 'potion';
+    const btnLabel = isSelected ? '✓選中' : (isPot ? '使用' : '裝備');
+    const btnFill  = isSelected ? 0x334422 : (isPot ? 0x1c3c1c : 0x222244);
+    const selBtn = button(scene, panelCx + panelW / 2 - 38, rowCy, btnLabel, () => {
+      this._selectedItem = isSelected ? null : item;
+      this._build();
+    }, { w: 64, h: 34, fill: btnFill, size: 12 });
+    selBtn.setDepth(603);
+    this._objs.push(selBtn);
 
     // 可點擊整行
     const rowHit = scene.add.rectangle(panelCx - 40, rowCy, panelW - 80, 42, 0xffffff, 0).setDepth(602).setInteractive();
     rowHit.on('pointerup', () => {
-      if (item.type !== 'potion') {
-        this._selectedItem = (this._selectedItem === item) ? null : item;
-        this._build();
-      }
+      this._selectedItem = (this._selectedItem === item) ? null : item;
+      this._build();
     });
     this._objs.push(rowHit);
   }
 
   _onSelectHero(hero) {
-    if (this._selectedItem && this._selectedItem.type !== 'potion') {
-      // 裝備選中道具到此英雄
-      const displaced = equipItem(hero, this._selectedItem);
-      const idx = (this.run.inventory || []).findIndex((i) => i.uid === this._selectedItem.uid);
-      if (idx >= 0) this.run.inventory.splice(idx, 1);
-      if (displaced) this.run.inventory.push(displaced);
+    if (this._selectedItem) {
+      const item = this._selectedItem;
+      const inv = this.run.inventory || [];
+      const idx = inv.findIndex((i) => i.uid === item.uid);
       this._selectedItem = null;
-      this._toast(`裝備 ${displaced ? `（替換 ${displaced.name}）` : ''}`);
+
+      if (item.type === 'potion') {
+        // 藥水：使用在點選的角色身上
+        if (hero.hp <= 0) { this._toast('該角色已倒下'); this._build(); return; }
+        if (idx >= 0) {
+          const heal = usePotion(hero, item);
+          inv.splice(idx, 1);
+          this._toast(`${hero.name.split('・')[0]} 回復 ${heal} HP`);
+        }
+      } else {
+        // 裝備：套在點選的角色身上
+        const displaced = equipItem(hero, item);
+        if (idx >= 0) inv.splice(idx, 1);
+        if (displaced) inv.push(displaced);
+        this._toast(`裝備成功${displaced ? `（替換 ${displaced.name}）` : ''}`);
+      }
     } else {
       this._selectedHero = (this._selectedHero === hero) ? null : hero;
     }
@@ -210,8 +203,11 @@ export class PartyPanel {
   }
 
   _getHint() {
-    if (this._selectedItem) return `已選中「${this._selectedItem.name}」→ 點選角色卡裝備`;
-    return '點選角色卡查看 / 點選道具「裝備」後再點角色';
+    if (this._selectedItem) {
+      const action = this._selectedItem.type === 'potion' ? '使用在誰身上' : '裝備給誰';
+      return `已選中「${this._selectedItem.name}」→ 點選角色卡${action}`;
+    }
+    return '點選道具的「使用」或「裝備」後，再點角色卡來指定對象';
   }
 
   _toast(msg) {
