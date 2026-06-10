@@ -1,0 +1,20 @@
+{
+  "name": "dice-rogue",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "8-bit 擲骰 Roguelike RPG（Phaser 3 + Vite + PWA）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sim": "node scripts/sim.js"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-pwa": "^0.20.5"
+  }
+}
