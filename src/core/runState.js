@@ -16,6 +16,8 @@ export function createRun({ seed, difficulty }) {
     gold: 0,
     cleared: 0,                       // 已清節點數
     result: null,                     // 'win' | 'lose'
+    inventory: [],                    // 背包（上限 12 格）
+    pendingDrops: [],                 // 戰鬥後待收取的掉落物
   };
 }
 

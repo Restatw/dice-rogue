@@ -2,7 +2,7 @@
 // → 奇偶剋制 → 算出傷害 / 治療。回傳完整 result 供畫面播動畫。
 import { BALANCE } from '../data/balance.js';
 import { rollDice, sumOf, parityOf, countEven, countOdd, classifyTier, detectCombo } from './dice.js';
-import { encodeElement, elementMatchup } from '../data/elements.js';
+import { elementMatchup } from '../data/elements.js';
 
 // attacker: 我方角色 { class, atk, element... } 或 怪物 { isEnemy, atk, element }
 // defender: 對方單位（需有 element 與 hp）
@@ -10,7 +10,7 @@ export function resolveAttack(attacker, defender, rng, balance = BALANCE) {
   const dice = rollDice(rng);
   const sum = sumOf(dice);
   const parity = parityOf(sum);
-  const rollElement = encodeElement(sum, balance);   // 這次攻擊骰的元素
+  const attackElement = attacker.element;            // 屬性依「攻擊者」決定
   const tier = classifyTier(sum, balance);
   const combo = detectCombo(dice, balance);
 
@@ -18,22 +18,22 @@ export function resolveAttack(attacker, defender, rng, balance = BALANCE) {
     dice, sum, parity,
     evenCount: countEven(dice),
     oddCount: countOdd(dice),
-    tier, combo, element: rollElement,
+    tier, combo, element: attackElement,
   };
 
   // 職業縮放（怪物沒有 class → 視為 1.0）
   const cls = attacker.class;
   const scaled = cls ? cls.scale(ctx) : { mult: 1.0 };
 
-  // 元素剋制：攻擊骰元素 vs 防守方元素
-  const elementMult = elementMatchup(rollElement, defender.element, balance);
+  // 元素剋制：攻擊者元素 vs 防守方元素
+  const elementMult = elementMatchup(attackElement, defender.element, balance);
 
   const result = {
     attacker: attacker.name,
     defender: defender.name,
     dice, sum, parity,
     tier, combo,
-    element: rollElement,
+    element: attackElement,
     defElement: defender.element,
     elementMult,
     classNote: scaled.note || '',
@@ -56,6 +56,22 @@ export function resolveAttack(attacker, defender, rng, balance = BALANCE) {
   const raw = attacker.atk * tier.mult * combo.mult * scaled.mult * elementMult;
   result.damage = Math.max(0, Math.round(raw));
   return result;
+}
+
+// 格檔擲骰：回傳 remain = 被攻擊時剩餘的傷害比例（0=完美格檔）。
+export function resolveGuard(actor, rng, balance = BALANCE) {
+  const dice = rollDice(rng);
+  const sum = sumOf(dice);
+  const tier = classifyTier(sum, balance);
+  const combo = detectCombo(dice, balance);
+  const element = actor.element;                     // 顯示用：依施展者元素
+
+  let remain = balance.guard[tier.id] ?? 1.0;
+  if (combo.id === 'five') remain = 0;
+  else if (combo.id !== 'none') remain *= balance.guard.comboFactor;
+  remain = Math.max(0, Math.min(1, remain));
+
+  return { dice, sum, tier, combo, element, remain, isGuard: true, attacker: actor.name };
 }
 
 // 套用一次攻擊結果到目標（就地修改 hp）。回傳是否擊倒。

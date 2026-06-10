@@ -12,11 +12,12 @@ export const CLASSES = {
     role: '前排 / 高血量',
     baseHp: 60,
     baseAtk: 12,
-    // 看「總和大小」：總和越高傷害越高（0.8 → 1.5）。
+    spd: 3,
     scale(ctx) {
-      const t = (ctx.sum - 5) / (30 - 5); // 0..1
+      const t = (ctx.sum - 5) / (30 - 5);
       return { mult: lerp(0.8, 1.5, t), note: '怒氣隨總和上升' };
     },
+    skill: { name: '怒嘯斬', desc: '對所有敵人造成 120% 傷害', id: 'warrior_slash' },
   },
 
   mage: {
@@ -25,10 +26,11 @@ export const CLASSES = {
     role: '範圍 / 偶數爆發',
     baseHp: 38,
     baseAtk: 16,
-    // 看「偶數骰數量」：每顆偶數骰 +0.12（0.8 → 1.4）。
+    spd: 4,
     scale(ctx) {
       return { mult: 0.8 + ctx.evenCount * 0.12, note: `偶數 ×${ctx.evenCount}` };
     },
+    skill: { name: '魔法爆炎', desc: '對所有敵人造成 150% 魔法傷害', id: 'mage_blast' },
   },
 
   rogue: {
@@ -37,12 +39,13 @@ export const CLASSES = {
     role: '連線 / 奇數暴擊',
     baseHp: 44,
     baseAtk: 14,
-    // 看「奇數骰數量」並對連線額外加成（連線專家）。
+    spd: 6,
     scale(ctx) {
-      let m = 0.8 + ctx.oddCount * 0.1; // 0.8 → 1.3
-      if (ctx.combo.id !== 'none') m *= 1.2; // 連線時再 +20%
+      let m = 0.8 + ctx.oddCount * 0.1;
+      if (ctx.combo.id !== 'none') m *= 1.2;
       return { mult: m, note: `奇數 ×${ctx.oddCount}${ctx.combo.id !== 'none' ? ' +連線' : ''}` };
     },
+    skill: { name: '神速四連', desc: '對單體連擊 4 次（每次 60% 傷害）', id: 'rogue_quad' },
   },
 
   priest: {
@@ -51,13 +54,14 @@ export const CLASSES = {
     role: '輔助 / 奇偶切換',
     baseHp: 46,
     baseAtk: 9,
-    // 看「總和奇偶」切換型態：偶數=正常輸出；奇數=改為治療隊友（輸出歸 0）。
+    spd: 4,
     scale(ctx) {
       if (ctx.parity === 'odd') {
         return { mult: 0.0, heal: 8 + ctx.oddCount * 2, note: '聖光：治療隊友' };
       }
       return { mult: 1.0, note: '審判：正常輸出' };
     },
+    skill: { name: '大治癒術', desc: '治療全隊各 40% 最大 HP', id: 'priest_heal' },
   },
 };
 

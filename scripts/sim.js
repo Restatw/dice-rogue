@@ -38,7 +38,7 @@ for (const e of ELEMENT_LIST) console.log(`  ${e.name}(${e.id.padEnd(7)}) ${pct(
 
 // 各職業 vs 四元素怪物的平均單擊傷害（atk=12 基準）
 console.log('\n=== 各職業平均單擊傷害 vs 四元素（atk=12）===');
-const fakeAtkEntity = (clsKey) => ({ name: CLASSES[clsKey].name, class: CLASSES[clsKey], atk: 12 });
+const fakeAtkEntity = (clsKey) => ({ name: CLASSES[clsKey].name, class: CLASSES[clsKey], atk: 12, element: ELEMENTS.water });
 for (const clsKey of Object.keys(CLASSES)) {
   const parts = [];
   for (const el of ELEMENT_LIST) {
