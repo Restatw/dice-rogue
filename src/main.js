@@ -20,8 +20,8 @@ const config = {
   scale: {
     mode: Phaser.Scale.FIT,            // 直式手機優先，等比縮放置中
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 450,                        // 比例 ≈ 0.462，貼近 19.5:9 直式手機，黑邊最小化
-    height: 975,
+    width: 1080,                        // 比例 ≈ 0.462，貼近 19.5:9 直式手機，黑邊最小化
+    height: 1920,
   },
   scene: [
     BootScene, MainMenuScene, DifficultyScene,

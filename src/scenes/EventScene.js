@@ -1,5 +1,6 @@
 // 事件場景：展示事件選項、骰子判定、效果結算。
 import { pixelText, button, COLORS, FONT } from '../ui/widgets.js';
+import { FS } from '../config/typography.js';
 import { DiceRoller } from '../ui/dice.js';
 import { SFX } from '../audio/sfx.js';
 import { getRun } from '../core/runState.js';
@@ -43,19 +44,19 @@ export default class EventScene extends Phaser.Scene {
     this._clearObjs();
 
     // 圖示 + 標題
-    this._objs.push(pixelText(this, W / 2, 60, ev.icon || '?', 52, '#ffffff'));
-    this._objs.push(pixelText(this, W / 2, 118, ev.name, 22, '#ffcc44'));
+    this._objs.push(pixelText(this, W / 2, 120, ev.icon || '?', 125, '#ffffff'));
+    this._objs.push(pixelText(this, W / 2, 236, ev.name, FS.sectionHead, '#ffcc44'));
 
     // 說明文字（換行）
-    const descTxt = this.add.text(W / 2, 160, ev.desc, {
-      fontFamily: FONT, fontSize: '13px', color: '#c8c8e0',
+    const descTxt = this.add.text(W / 2, 320, ev.desc, {
+      fontFamily: FONT, fontSize: `${FS.actorLabel}px`, color: '#c8c8e0',
       wordWrap: { width: W - 48 }, align: 'center',
       padding: { top: 2, bottom: 2, left: 2, right: 2 },
     }).setOrigin(0.5, 0);
     this._objs.push(descTxt);
 
-    const optY = 310;
-    const optH = 72;
+    const optY = 620;
+    const optH = 173;
 
     ev.options.forEach((opt, i) => {
       const oy = optY + i * (optH + 8);
@@ -64,14 +65,14 @@ export default class EventScene extends Phaser.Scene {
         ? (opt.condition ? `判定：${conditionDesc(opt.condition)}${bonus > 0 ? `  [${note}]` : ''}` : '（自動）')
         : '（不需骰子）';
 
-      const btn = button(this, W / 2, oy, '', () => this._chooseOption(opt, bonus), { w: W - 28, h: optH, fill: 0x1a1a2e });
+      const btn = button(this, W / 2, oy, '', () => this._chooseOption(opt, bonus), { w: W - 67, h: optH, fill: 0x1a1a2e });
       btn.setDepth(10);
 
       // 自定義文字（button 內部文字替換為多行）
       btn._txt.setText('');
-      const l1 = pixelText(this, W / 2, oy - 12, opt.label, 14, '#ffe08a').setDepth(11);
-      const l2 = pixelText(this, W / 2, oy + 6, opt.desc, 11, COLORS.dim).setDepth(11);
-      const l3 = pixelText(this, W / 2, oy + 22, condText, 10, opt.roll ? '#88bbff' : '#666688').setDepth(11);
+      const l1 = pixelText(this, W / 2, oy - 29, opt.label, FS.toastMsg, '#ffe08a').setDepth(11);
+      const l2 = pixelText(this, W / 2, oy + 14, opt.desc, FS.abilityCode, COLORS.dim).setDepth(11);
+      const l3 = pixelText(this, W / 2, oy + 53, condText, FS.elemName, opt.roll ? '#88bbff' : '#666688').setDepth(11);
       this._objs.push(btn, l1, l2, l3);
     });
   }
@@ -91,8 +92,8 @@ export default class EventScene extends Phaser.Scene {
 
       // 骰子動畫
       const { width: W } = this.scale;
-      this._objs.push(pixelText(this, W / 2, 80, '擲骰判定中…', 18, '#aabbff'));
-      this.dice = new DiceRoller(this, W / 2, 200, { size: 44, gap: 11 });
+      this._objs.push(pixelText(this, W / 2, 160, '擲骰判定中…', FS.rulesTitle, '#aabbff'));
+      this.dice = new DiceRoller(this, W / 2, 400, { size: 106, gap: 26 });
 
       const rolledDice = rollDice(this.run.rng);
       await this.dice.roll(rolledDice, { color: '#88aaff' });
@@ -106,13 +107,13 @@ export default class EventScene extends Phaser.Scene {
       const sumLabel = autoSuccess
         ? `[${rolledDice.join(' ')}] = ${rawSum}  ✦ 職業特效：必定成功！`
         : `[${rolledDice.join(' ')}] = ${rawSum}${effBonus > 0 ? ` (+${effBonus})` : ''} = ${rawSum + effBonus}`;
-      this._objs.push(pixelText(this, W / 2, 260, sumLabel, 13, '#cce0ff'));
+      this._objs.push(pixelText(this, W / 2, 520, sumLabel, FS.actorLabel, '#cce0ff'));
 
       const condLabel = opt.condition ? conditionDesc(opt.condition) : '';
-      this._objs.push(pixelText(this, W / 2, 282, `條件：${condLabel}`, 12, '#8888aa'));
+      this._objs.push(pixelText(this, W / 2, 564, `條件：${condLabel}`, FS.combatInfo, '#8888aa'));
 
       const resultColor = success ? '#66ee88' : '#ff6666';
-      this._objs.push(pixelText(this, W / 2, 312, success ? '✓ 判定成功！' : '✗ 判定失敗', 20, resultColor));
+      this._objs.push(pixelText(this, W / 2, 624, success ? '✓ 判定成功！' : '✗ 判定失敗', FS.panelTitle, resultColor));
 
       if (success) {
         this._applyEffect(opt.successEffect);
@@ -138,12 +139,12 @@ export default class EventScene extends Phaser.Scene {
     this._clearObjs();
 
     this._objs.push(
-      pixelText(this, W / 2, 100, success ? '✓ 成功' : '✗ 失敗', 28, success ? '#66ee88' : '#ff6666'),
-      pixelText(this, W / 2, 148, this.event.name, 16, '#ffcc44'),
+      pixelText(this, W / 2, 200, success ? '✓ 成功' : '✗ 失敗', FS.victoryGold, success ? '#66ee88' : '#ff6666'),
+      pixelText(this, W / 2, 296, this.event.name, FS.body, '#ffcc44'),
     );
 
-    const txt = this.add.text(W / 2, 188, msg, {
-      fontFamily: FONT, fontSize: '14px', color: '#e8e8f0',
+    const txt = this.add.text(W / 2, 376, msg, {
+      fontFamily: FONT, fontSize: `${FS.toastMsg}px`, color: '#e8e8f0',
       wordWrap: { width: W - 48 }, align: 'center',
       padding: { top: 2, bottom: 2 },
     }).setOrigin(0.5, 0);
@@ -152,18 +153,18 @@ export default class EventScene extends Phaser.Scene {
     // 效果說明
     const effectLine = this._effectDesc(effect);
     if (effectLine) {
-      this._objs.push(pixelText(this, W / 2, 260, effectLine, 14, '#ffcc88'));
+      this._objs.push(pixelText(this, W / 2, 520, effectLine, FS.toastMsg, '#ffcc88'));
     }
 
     // 繼續按鈕：延遲 300ms 才可點，防止誤觸
-    const cont = button(this, W / 2, H - 100, '繼續前進 →', () => {
+    const cont = button(this, W / 2, H - 200, '繼續前進 →', () => {
       const node = this.run.map.byId[this.nodeId];
       if (node) { node.visited = true; this.run.currentNodeId = node.id; this.run.cleared++; }
       this.scene.start('Map');
-    }, { w: 220, h: 52, fill: 0x1a2a3a });
+    }, { w: 528, h: 125, fill: 0x1a2a3a });
     cont.setDepth(10);
     cont.setEnabledState(false);
-    this.time.delayedCall(300, () => cont.setEnabledState(true));
+    this.time.delayedCall(400, () => cont.setEnabledState(true));
     this._objs.push(cont);
   }
 

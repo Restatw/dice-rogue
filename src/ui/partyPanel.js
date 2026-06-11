@@ -2,6 +2,7 @@
 // 並提供裝備/卸除/使用道具的統一介面。
 import { pixelText, button, hpBar, COLORS, FONT } from './widgets.js';
 import { equipItem, unequipItem, usePotion, rarityColor, SLOT_NAME } from '../data/items.js';
+import { FS } from '../config/typography.js';
 
 const SLOT_ICON = { weapon: '⚔', armor: '🛡', accessory: '💍' };
 
@@ -27,26 +28,26 @@ export class PartyPanel {
     this._objs.push(overlay);
 
     // 主面板
-    const panelW = W - 12;
-    const panelH = H - 80;
-    const px = W / 2, py = H / 2 + 10;
+    const panelW = W - 29;
+    const panelH = H - 160;
+    const px = W / 2, py = H / 2 + 24;
     const panel = this.scene.add.rectangle(px, py, panelW, panelH, 0x111133, 0.97)
       .setStrokeStyle(2, 0x5555aa).setDepth(601);
     this._objs.push(panel);
 
     // 標題列
-    this._objs.push(pixelText(this.scene, px, py - panelH / 2 + 18, '隊伍狀態', 18, '#ffcc44').setDepth(602));
+    this._objs.push(pixelText(this.scene, px, py - panelH / 2 + 43, '隊伍狀態', FS.rulesTitle, '#ffcc44').setDepth(602));
 
     // 關閉按鈕
-    const closeBtn = button(this.scene, px + panelW / 2 - 36, py - panelH / 2 + 18, '✕', () => this.destroy(), { w: 36, h: 28, size: 14, fill: 0x2c1c1c });
+    const closeBtn = button(this.scene, px + panelW / 2 - 86, py - panelH / 2 + 43, '✕', () => this.destroy(), { w: 86, h: 67, size: FS.toastMsg, fill: 0x2c1c1c });
     closeBtn.setDepth(602);
     this._objs.push(closeBtn);
 
     // ── 英雄卡列（上半） ─────────────────────────────────────
-    const heroAreaY = py - panelH / 2 + 44;
-    const heroCardH = 160;
-    const heroCardW = Math.min(130, (panelW - 20) / this.run.party.length);
-    const heroSpacing = heroCardW + 6;
+    const heroAreaY = py - panelH / 2 + 106;
+    const heroCardH = 320;
+    const heroCardW = Math.min(312, (panelW - 48) / this.run.party.length);
+    const heroSpacing = heroCardW + 14;
 
     this.run.party.forEach((hero, i) => {
       const hx = px + (i - (this.run.party.length - 1) / 2) * heroSpacing;
@@ -55,7 +56,7 @@ export class PartyPanel {
     });
 
     // ── 分隔線 ─────────────────────────────────────────────
-    const divY = heroAreaY + heroCardH + 12;
+    const divY = heroAreaY + heroCardH + 29;
     const divLine = this.scene.add.graphics().setDepth(601);
     divLine.lineStyle(1, 0x333355);
     divLine.lineBetween(px - panelW / 2 + 10, divY, px + panelW / 2 - 10, divY);
@@ -63,16 +64,16 @@ export class PartyPanel {
 
     // ── 背包（下半） ──────────────────────────────────────
     this._objs.push(
-      pixelText(this.scene, px - panelW / 2 + 16, divY + 12, `🎒 背包 (${(this.run.inventory || []).length}/12)`, 13, '#aabbff').setDepth(602).setOrigin(0, 0.5),
-      pixelText(this.scene, px + panelW / 2 - 16, divY + 12, `💰 ${this.run.gold} G`, 13, '#ffcc44').setDepth(602).setOrigin(1, 0.5)
+      pixelText(this.scene, px - panelW / 2 + 38, divY + 29, `🎒 背包 (${(this.run.inventory || []).length}/12)`, FS.actorLabel, '#aabbff').setDepth(602).setOrigin(0, 0.5),
+      pixelText(this.scene, px + panelW / 2 - 38, divY + 29, `💰 ${this.run.gold} G`, FS.actorLabel, '#ffcc44').setDepth(602).setOrigin(1, 0.5)
     );
 
     const inv = this.run.inventory || [];
-    const invStartY = divY + 30;
-    const itemH = 48;
+    const invStartY = divY + 72;
+    const itemH = 115;
 
     if (inv.length === 0) {
-      this._objs.push(pixelText(this.scene, px, invStartY + 20, '（背包是空的）', 13, COLORS.dim).setDepth(602));
+      this._objs.push(pixelText(this.scene, px, invStartY + 20, '（背包是空的）', FS.actorLabel, COLORS.dim).setDepth(602));
     }
 
     inv.slice(0, 7).forEach((item, i) => {
@@ -80,7 +81,7 @@ export class PartyPanel {
     });
 
     // 選中提示
-    this._hintTxt = pixelText(this.scene, px, py + panelH / 2 - 36, this._getHint(), 12, '#aaccff').setDepth(602);
+    this._hintTxt = pixelText(this.scene, px, py + panelH / 2 - 86, this._getHint(), FS.combatInfo, '#aaccff').setDepth(602);
     this._objs.push(this._hintTxt);
   }
 
@@ -97,35 +98,35 @@ export class PartyPanel {
     this._objs.push(card);
 
     // 名稱
-    this._objs.push(pixelText(scene, x, y - cardH / 2 + 11, hero.name.split('・')[0], 12, '#ffcc44').setDepth(603));
-    this._objs.push(pixelText(scene, x, y - cardH / 2 + 24, `${hero.class.name} ${hero.element.name}`, 9, hero.element.color).setDepth(603));
+    this._objs.push(pixelText(scene, x, y - cardH / 2 + 26, hero.name.split('・')[0], FS.cardName, '#ffcc44').setDepth(603));
+    this._objs.push(pixelText(scene, x, y - cardH / 2 + 58, `${hero.class.name} ${hero.element.name}`, FS.statNum, hero.element.color).setDepth(603));
 
     // HP 條
-    const bw = cardW - 14;
-    const bar = hpBar(scene, x - bw / 2, y - cardH / 2 + 38, bw, 9, hero.hp / hero.maxHp, COLORS.good);
+    const bw = cardW - 34;
+    const bar = hpBar(scene, x - bw / 2, y - cardH / 2 + 91, bw, 22, hero.hp / hero.maxHp, COLORS.good);
     bar.setDepth(602);
     this._objs.push(bar);
-    this._objs.push(pixelText(scene, x, y - cardH / 2 + 38, `${hero.hp}/${hero.maxHp}`, 9).setDepth(603));
+    this._objs.push(pixelText(scene, x, y - cardH / 2 + 91, `${hero.hp}/${hero.maxHp}`, FS.statNum).setDepth(603));
 
     // 裝備槽
     const slots = ['weapon', 'armor', 'accessory'];
     const eq = hero.equipment || {};
     slots.forEach((slot, si) => {
-      const sy = y - cardH / 2 + 58 + si * 30;
+      const sy = y - cardH / 2 + 139 + si * 72;
       const equipped = eq[slot];
       const icon = SLOT_ICON[slot];
       const label = equipped ? equipped.name : '空';
       const col = equipped ? rarityColor(equipped.rarity) : '#444466';
-      this._objs.push(pixelText(scene, x - cardW / 2 + 8, sy, `${icon}`, 10, col).setDepth(603).setOrigin(0, 0.5));
-      this._objs.push(pixelText(scene, x + 2, sy, label, 9, col).setDepth(603).setOrigin(0, 0.5));
+      this._objs.push(pixelText(scene, x - cardW / 2 + 19, sy, `${icon}`, FS.elemName, col).setDepth(603).setOrigin(0, 0.5));
+      this._objs.push(pixelText(scene, x + 5, sy, label, FS.statNum, col).setDepth(603).setOrigin(0, 0.5));
 
       // 卸除按鈕（若有裝備）
       if (equipped) {
-        const unBtn = button(scene, x + cardW / 2 - 14, sy, '✕', () => {
+        const unBtn = button(scene, x + cardW / 2 - 34, sy, '✕', () => {
           unequipItem(hero, equipped);
           this.run.inventory.push(equipped);
           this._build();
-        }, { w: 20, h: 20, size: 10, fill: 0x2c1c1c });
+        }, { w: 48, h: 48, size: FS.elemName, fill: 0x2c1c1c });
         unBtn.setDepth(603);
         this._objs.push(unBtn);
       }
@@ -133,40 +134,40 @@ export class PartyPanel {
 
     // 數值
     const spd = (hero.class?.spd ?? 4) + (hero.spdBonus || 0);
-    this._objs.push(pixelText(scene, x, y + cardH / 2 - 12, `ATK ${hero.atk}  SPD ${spd}`, 9, COLORS.dim).setDepth(603));
+    this._objs.push(pixelText(scene, x, y + cardH / 2 - 29, `ATK ${hero.atk}  SPD ${spd}`, FS.statNum, COLORS.dim).setDepth(603));
   }
 
   _buildItemRow(item, idx, panelCx, panelW, rowY) {
     const scene = this.scene;
-    const rowCy = rowY + 20;
+    const rowCy = rowY + 48;
     const isSelected = this._selectedItem === item;
     const rCol = rarityColor(item.rarity);
 
     // 高亮選中的道具
     if (isSelected) {
-      const hl = scene.add.rectangle(panelCx, rowCy, panelW - 20, 42, 0x223344).setDepth(601);
+      const hl = scene.add.rectangle(panelCx, rowCy, panelW - 48, 101, 0x223344).setDepth(601);
       this._objs.push(hl);
     }
 
     // 道具名稱 + 說明
     this._objs.push(
-      pixelText(scene, panelCx - panelW / 2 + 14, rowCy - 6, item.name, 12, rCol).setDepth(602).setOrigin(0, 0.5),
-      pixelText(scene, panelCx - panelW / 2 + 18, rowCy + 9, item.desc, 9, COLORS.dim).setDepth(602).setOrigin(0, 0.5)
+      pixelText(scene, panelCx - panelW / 2 + 34, rowCy - 14, item.name, FS.cardName, rCol).setDepth(602).setOrigin(0, 0.5),
+      pixelText(scene, panelCx - panelW / 2 + 43, rowCy + 22, item.desc, FS.statNum, COLORS.dim).setDepth(602).setOrigin(0, 0.5)
     );
 
     // 藥水與裝備皆走「選取 → 點英雄卡」流程
     const isPot = item.type === 'potion';
     const btnLabel = isSelected ? '✓選中' : (isPot ? '使用' : '裝備');
     const btnFill  = isSelected ? 0x334422 : (isPot ? 0x1c3c1c : 0x222244);
-    const selBtn = button(scene, panelCx + panelW / 2 - 38, rowCy, btnLabel, () => {
+    const selBtn = button(scene, panelCx + panelW / 2 - 91, rowCy, btnLabel, () => {
       this._selectedItem = isSelected ? null : item;
       this._build();
-    }, { w: 64, h: 34, fill: btnFill, size: 12 });
+    }, { w: 154, h: 82, fill: btnFill, size: FS.combatInfo });
     selBtn.setDepth(603);
     this._objs.push(selBtn);
 
     // 可點擊整行
-    const rowHit = scene.add.rectangle(panelCx - 40, rowCy, panelW - 80, 42, 0xffffff, 0).setDepth(602).setInteractive();
+    const rowHit = scene.add.rectangle(panelCx - 96, rowCy, panelW - 192, 101, 0xffffff, 0).setDepth(602).setInteractive();
     rowHit.on('pointerup', () => {
       this._selectedItem = (this._selectedItem === item) ? null : item;
       this._build();
@@ -212,7 +213,7 @@ export class PartyPanel {
 
   _toast(msg) {
     const { width: W, height: H } = this.scene.scale;
-    const t = pixelText(this.scene, W / 2, H - 50, msg, 14, '#ffee88').setDepth(700);
+    const t = pixelText(this.scene, W / 2, H - 120, msg, FS.toastMsg, '#ffee88').setDepth(700);
     this.scene.tweens.add({ targets: t, y: H - 80, alpha: 0, duration: 1200, delay: 100, onComplete: () => t.destroy() });
   }
 

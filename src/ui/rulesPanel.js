@@ -1,6 +1,7 @@
 // 規則說明面板：可從任何場景呼叫的全域浮動元件。
 // addRulesButton(scene) 在場景右上角建立「?」按鈕。
 import { pixelText, button, COLORS, FONT } from './widgets.js';
+import { FS } from '../config/typography.js';
 
 // ── 規則內容定義 ────────────────────────────────────────────
 // 每個 section 是一個分頁，lines 是要顯示的內容行。
@@ -201,36 +202,36 @@ export class RulesPanel {
     this._objs.push(shade);
 
     // 主面板
-    const panelW = W - 10;
-    const panelH = H - 60;
-    const px = W / 2, py = H / 2 + 10;
+    const panelW = W - 24;
+    const panelH = H - 120;
+    const px = W / 2, py = H / 2 + 24;
     const panel = scene.add.rectangle(px, py, panelW, panelH, 0x0d0d1e, 0.98)
       .setStrokeStyle(2, 0x5555aa).setDepth(801);
     this._objs.push(panel);
 
     // 標題
     this._objs.push(
-      pixelText(scene, px, py - panelH / 2 + 18, '📖 遊戲規則', 18, '#ffcc44').setDepth(802)
+      pixelText(scene, px, py - panelH / 2 + 43, '📖 遊戲規則', FS.rulesTitle, '#ffcc44').setDepth(802)
     );
 
     // 關閉按鈕
-    const closeBtn = button(scene, px + panelW / 2 - 34, py - panelH / 2 + 18, '✕', () => this.destroy(),
-      { w: 40, h: 30, size: 14, fill: 0x2c1c1c });
+    const closeBtn = button(scene, px + panelW / 2 - 82, py - panelH / 2 + 43, '✕', () => this.destroy(),
+      { w: 96, h: 72, size: FS.toastMsg, fill: 0x2c1c1c });
     closeBtn.setDepth(802);
     this._objs.push(closeBtn);
 
     // ── 左側分頁列 ──────────────────────────────────────────
-    const tabX = px - panelW / 2 + 2;
-    const tabW = 76;
-    const tabH = Math.min(56, (panelH - 52) / SECTIONS.length);
-    const tabStartY = py - panelH / 2 + 44;
+    const tabX = px - panelW / 2 + 5;
+    const tabW = 182;
+    const tabH = Math.min(134, (panelH - 125) / SECTIONS.length);
+    const tabStartY = py - panelH / 2 + 106;
 
     SECTIONS.forEach((sec, i) => {
       const ty = tabStartY + i * tabH + tabH / 2;
       const active = i === this._currentTab;
       const tabBg = scene.add.rectangle(tabX + tabW / 2, ty, tabW, tabH - 2,
         active ? 0x223355 : 0x111122).setStrokeStyle(1, active ? 0x88aaff : 0x333355).setDepth(802);
-      const tabTxt = pixelText(scene, tabX + tabW / 2, ty, sec.tab, 10,
+      const tabTxt = pixelText(scene, tabX + tabW / 2, ty, sec.tab, FS.tabLabel,
         active ? '#ffe08a' : '#7777aa').setDepth(803);
       tabBg.setInteractive({ useHandCursor: true });
       tabBg.on('pointerup', () => { this._currentTab = i; this._build(); });
@@ -240,22 +241,22 @@ export class RulesPanel {
     });
 
     // ── 右側內容區 ──────────────────────────────────────────
-    const contentX = tabX + tabW + 8;
-    const contentW = panelW - tabW - 14;
-    const contentStartY = py - panelH / 2 + 44;
-    const contentH = panelH - 54;
+    const contentX = tabX + tabW + 19;
+    const contentW = panelW - tabW - 34;
+    const contentStartY = py - panelH / 2 + 106;
+    const contentH = panelH - 130;
     const contentEndY = contentStartY + contentH;
 
     const sec = SECTIONS[this._currentTab];
     let curY = contentStartY + 6;
-    const lineSpacing = 5;
+    const lineSpacing = 12;
 
     sec.lines.forEach((line) => {
       if (!line.text) { curY += 8; return; }
       const size = line.size || 12;
       const color = line.color || '#e8e8f0';
       const lx = contentX + (line.indent ? 12 : 0);
-      if (curY + size + lineSpacing > contentEndY - 4) return; // 超出範圍截斷
+      if (curY + size + lineSpacing > contentEndY - 10) return; // 超出範圍截斷
       const t = pixelText(scene, lx + contentW / 2 - (line.indent ? 6 : 0), curY + size / 2, line.text, size, color)
         .setDepth(802).setOrigin(0, 0.5);
       // 讓文字左對齊
@@ -266,8 +267,8 @@ export class RulesPanel {
     });
 
     // 關閉按鈕（底部）
-    const closeBottom = button(scene, px, py + panelH / 2 - 22, '關閉規則', () => this.destroy(),
-      { w: 160, h: 36, size: 13, fill: 0x1c1c2c });
+    const closeBottom = button(scene, px, py + panelH / 2 - 53, '關閉規則', () => this.destroy(),
+      { w: 384, h: 86, size: FS.actorLabel, fill: 0x1c1c2c });
     closeBottom.setDepth(802);
     this._objs.push(closeBottom);
   }
@@ -283,9 +284,9 @@ export function addRulesButton(scene) {
   const { width: W } = scene.scale;
   // 延遲建立，避免 scene 剛開始時物件未準備好
   scene.time.delayedCall(50, () => {
-    const btn = button(scene, W - 28, 28, '?', () => {
+    const btn = button(scene, W - 67, 67, '?', () => {
       new RulesPanel(scene);
-    }, { w: 44, h: 44, size: 18, fill: 0x1a1a3a, edge: 0x5555aa });
+    }, { w: 106, h: 106, size: FS.rulesTitle, fill: 0x1a1a3a, edge: 0x5555aa });
     btn.setDepth(500);
     btn.setAlpha(0.82);
   });

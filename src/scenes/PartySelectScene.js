@@ -1,6 +1,7 @@
 import { pixelText, button, COLORS } from '../ui/widgets.js';
 import { getRun } from '../core/runState.js';
 import { makeCandidates } from '../core/party.js';
+import { FS } from '../config/typography.js';
 
 // 隨機生成 6 名候選，玩家挑 3 名組隊。
 export default class PartySelectScene extends Phaser.Scene {
@@ -14,18 +15,18 @@ export default class PartySelectScene extends Phaser.Scene {
     this.candidates = makeCandidates(this.run.rng, 6);
     this.selected = new Set();
 
-    pixelText(this, W / 2, 32, '組成隊伍（選 3 名）', 22, COLORS.text);
+    pixelText(this, W / 2, 64, '組成隊伍（選 3 名）', FS.sectionHead, COLORS.text);
 
     // 直式：2 欄 × 3 列，寬度依畫面自適應
-    const cols = 2, gapX = 14, gapY = 16;
-    const cardW = Math.min(210, (W - gapX * (cols + 1)) / cols);
-    const cardH = 168;
+    const cols = 2, gapX = 34, gapY = 38;
+    const cardW = Math.min(504, (W - gapX * (cols + 1)) / cols);
+    const cardH = 336;
     const totalW = cols * cardW + (cols - 1) * gapX;
     const startX = (W - totalW) / 2 + cardW / 2;
     // 在標題(~64)與確認鈕(H-72)之間垂直置中
     const rows = Math.ceil(this.candidates.length / cols);
     const gridH = rows * cardH + (rows - 1) * gapY;
-    const areaTop = 64, areaBottom = H - 72;
+    const areaTop = 128, areaBottom = H - 144;
     const startY = areaTop + ((areaBottom - areaTop) - gridH) / 2;
 
     this.cards = this.candidates.map((c, i) => {
@@ -35,21 +36,21 @@ export default class PartySelectScene extends Phaser.Scene {
       return this.makeCard(c, x, y, cardW, cardH);
     });
 
-    this.confirmBtn = button(this, W / 2, H - 40, '確認出發 (0/3)',
-      () => this.confirm(), { w: 280, h: 50 });
+    this.confirmBtn = button(this, W / 2, H - 96, '確認出發 (0/3)',
+      () => this.confirm(), { w: 672, h: 120 });
     this.confirmBtn.setEnabledState(false);
   }
 
   makeCard(c, x, y, w, h) {
     const cont = this.add.container(x, y);
     const bg = this.add.rectangle(0, 0, w, h, COLORS.panel).setStrokeStyle(2, COLORS.panelEdge);
-    const name = pixelText(this, 0, -h / 2 + 24, c.name, 16, '#ffcc44');
-    const role = pixelText(this, 0, -h / 2 + 48, c.role, 12, COLORS.dim);
-    const stats = pixelText(this, 0, -8,
-      `HP ${c.maxHp}\nATK ${c.atk}`, 15).setOrigin(0.5);
-    const elem = pixelText(this, 0, h / 2 - 44,
-      `屬性：${c.element.name}`, 14, c.element.color);
-    const code = pixelText(this, 0, h / 2 - 22, `能力編碼 ${c.code}`, 11, COLORS.dim);
+    const name = pixelText(this, 0, -h / 2 + 58, c.name, FS.body, '#ffcc44');
+    const role = pixelText(this, 0, -h / 2 + 115, c.role, FS.roleName, COLORS.dim);
+    const stats = pixelText(this, 0, 4,
+      `HP ${c.maxHp}\nATK ${c.atk}`, FS.statNum).setOrigin(0.5);
+    const elem = pixelText(this, 0, h / 2 - 106,
+      `屬性：${c.element.name}`, FS.toastMsg, c.element.color);
+    const code = pixelText(this, 0, h / 2 - 53, `能力編碼 ${c.code}`, FS.abilityCode, COLORS.dim);
     cont.add([bg, name, role, stats, elem, code]);
     cont._bg = bg;
 

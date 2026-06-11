@@ -11,9 +11,9 @@ export const COLORS = {
 // 跟隨裝置實際 DPR，最高 3× 避免記憶體過大
 const TEXT_RES = Math.min(Math.round(window.devicePixelRatio || 2), 3);
 // Zpix 像素字型在 12px 以下難以辨識，統一拉高下限
-const MIN_SIZE = 12;
+const MIN_SIZE = 24;
 
-export function pixelText(scene, x, y, str, size = 16, color = COLORS.text) {
+export function pixelText(scene, x, y, str, size = 38, color = COLORS.text) {
   const s = Math.max(MIN_SIZE, size);
   return scene.add.text(x, y, str, {
     fontFamily: FONT, fontSize: `${s}px`, color,
@@ -24,11 +24,11 @@ export function pixelText(scene, x, y, str, size = 16, color = COLORS.text) {
 
 // 回傳一個可點按鈕（Container），onClick 觸發回呼。
 export function button(scene, x, y, label, onClick, opts = {}) {
-  const w = opts.w || 220, h = opts.h || 48;
+  const w = opts.w || 528, h = opts.h || 115;
   const c = scene.add.container(x, y);
   const bg = scene.add.rectangle(0, 0, w, h, opts.fill ?? COLORS.panel)
     .setStrokeStyle(2, opts.edge ?? COLORS.panelEdge);
-  const txt = pixelText(scene, 0, 0, label, opts.size || 18, opts.color || COLORS.text);
+  const txt = pixelText(scene, 0, 0, label, opts.size || 43, opts.color || COLORS.text);
   c.add([bg, txt]);
   c.setSize(w, h);
   c.setInteractive({ useHandCursor: true });

@@ -10,6 +10,8 @@ import { PartyPanel } from '../ui/partyPanel.js';
 import { addRulesButton } from '../ui/rulesPanel.js';
 import { elementMatchup } from '../data/elements.js';
 import { BALANCE } from '../data/balance.js';
+import { drawEnemySprite, drawHeroPortrait } from '../ui/charSprites.js';
+import { FS } from '../config/typography.js';
 
 const SP_MAX = BALANCE.sp.max;
 const SP_GAIN_ATK = BALANCE.sp.gainOnAttack;
@@ -48,20 +50,20 @@ export default class CombatScene extends Phaser.Scene {
     // ── 標題 ───────────────────────────────────────────────
     const titleColor = this.nodeType === 'boss' ? '#cc88ff' : this.nodeType === 'elite' ? '#ff8866' : '#ffcc88';
     const titleLabel = this.nodeType === 'boss' ? '☠ BOSS 戰' : this.nodeType === 'elite' ? '☠ 精英戰' : '⚔ 戰鬥';
-    pixelText(this, W / 2, 22, titleLabel, 20, titleColor);
+    pixelText(this, W / 2, 53, titleLabel, FS.panelTitle, titleColor);
 
     // ── 先攻順序軌道 ────────────────────────────────────────
-    pixelText(this, W / 2, 44, '行動順序', 10, COLORS.dim);
+    pixelText(this, W / 2, 110, '行動順序', FS.elemName, COLORS.dim);
     this.trackC = this.add.container(0, 0);
 
     // ── 敵人 ────────────────────────────────────────────────
     this.buildEnemies();
 
     // ── 骰子區 ─────────────────────────────────────────────
-    this.actorTxt = pixelText(this, W / 2, 274, '', 13, COLORS.dim);
-    this.dice = new DiceRoller(this, W / 2, 314, { size: 38, gap: 10 });
+    this.actorTxt = pixelText(this, W / 2, 548, '', FS.actorLabel, COLORS.dim);
+    this.dice = new DiceRoller(this, W / 2, 628, { size: 91, gap: 24 });
     // 多行傷害計算文字：從 dice 底部往下展開，暫時覆蓋 log 區
-    this.infoTxt = pixelText(this, W / 2, 358, '', 12, COLORS.dim).setOrigin(0.5, 0);
+    this.infoTxt = pixelText(this, W / 2, 716, '', FS.combatInfo, COLORS.dim).setOrigin(0.5, 0);
 
     // ── 戰鬥紀錄面板 ────────────────────────────────────────
     this.buildLog(W, H);
@@ -81,16 +83,16 @@ export default class CombatScene extends Phaser.Scene {
   buildEnemies() {
     const { width: W } = this.scale;
     const count = this.enemies.length;
-    const slotW = Math.min(100, (W - 16) / count);
-    const box = Math.min(78, slotW - 8);
+    const slotW = Math.min(240, (W - 38) / count);
+    const box = Math.min(187, slotW - 19);
     let x = W / 2 - (count * slotW) / 2 + slotW / 2;
-    const y = 155;
+    const y = 310;
     const numSize = Math.max(9, Math.round(box * 0.16));
     this.enemyUI = this.enemies.map((en) => {
       const sprite = this.add.rectangle(x, y, box, box, 0x33223a).setStrokeStyle(2, 0x884466);
-      const ch = pixelText(this, x, y - 2, en.name[0], Math.round(box * 0.42), '#ffbbcc');
-      const elem = pixelText(this, x, y - box / 2 + 7, en.element.name, 10, en.element.color);
-      const bar = hpBar(this, x - box / 2, y + box / 2 + 6, box, 5, 1, COLORS.danger);
+      const ch = drawEnemySprite(this, x, y, en.id, box);
+      const elem = pixelText(this, x, y - box / 2 + 7, en.element.name, FS.elemName, en.element.color);
+      const bar = hpBar(this, x - box / 2, y + box / 2 + 14, box, 12, 1, COLORS.danger);
       const hpNum = pixelText(this, x - box / 2 + 3, y + box / 2 - numSize - 1, `${en.hp}`, numSize, '#88ee99').setOrigin(0, 0.5);
       const atkNum = pixelText(this, x + box / 2 - 3, y + box / 2 - numSize - 1, `⚔${en.atk}`, numSize, '#ff9966').setOrigin(1, 0.5);
       const ui = { enemy: en, x, y, box, sprite, ch, elem, bar, hpNum, atkNum };
@@ -105,41 +107,48 @@ export default class CombatScene extends Phaser.Scene {
   // ── 角色卡（含SP條） ────────────────────────────────────
   buildHeroUI(W, H) {
     const n = this.heroes.length;
-    const spacing = Math.min(148, (W - 12) / n);
-    const cardW = Math.min(132, spacing - 10);
-    const cardH = 130;
-    const barW = cardW - 18;
-    const heroY = H - 270;
+    const spacing = Math.min(355, (W - 29) / n);
+    const cardW = Math.min(317, spacing - 24);
+    const cardH = 320;
+    const barW = cardW - 43;
+    const heroY = H - 560;
 
     this.heroUI = this.heroes.map((h, i) => {
       const x = W / 2 + (i - (n - 1) / 2) * spacing;
       const y = heroY;
       const card = this.add.rectangle(x, y, cardW, cardH, COLORS.panel).setStrokeStyle(2, COLORS.panelEdge);
-      // 名稱與職業
-      pixelText(this, x, y - cardH / 2 + 12, h.name.split('・')[0], 13, '#ffcc44');
-      pixelText(this, x - 14, y - cardH / 2 + 26, h.class.name, 10, COLORS.dim);
-      pixelText(this, x + 18, y - cardH / 2 + 26, h.element.name, 10, h.element.color);
-      // HP 條
-      const bar = hpBar(this, x - barW / 2, y - 10, barW, 10, 1, COLORS.good);
-      const hpTxt = pixelText(this, x, y - 10, '', 9);
+      // 立繪（左側，佔卡片上半）
+      const portW = Math.min(110, cardW * 0.34);
+      const portX = x - cardW / 2 + portW / 2 + 8;
+      const portY = y - cardH / 2 + portW * 0.79 + 10;
+      const portrait = drawHeroPortrait(this, portX, portY, h, portW);
+      // 名稱與職業（右側）
+      const rightAreaLeft = -cardW / 2 + portW + 16;
+      const txtX = x + rightAreaLeft + (cardW - portW - 24) / 2;
+      pixelText(this, txtX, y - cardH / 2 + 28, h.name.split('・')[0], FS.cardName, '#ffcc44');
+      pixelText(this, txtX - 24, y - cardH / 2 + 58, h.class.name, FS.heroClass, COLORS.dim);
+      pixelText(this, txtX + 34, y - cardH / 2 + 58, h.element.name, FS.heroClass, h.element.color);
+      // HP 條（立繪下方）
+      const bar = hpBar(this, x - barW / 2, y + 42, barW, 24, 1, COLORS.good);
+      const hpTxt = pixelText(this, x, y + 42, '', FS.statNum);
       // SP 條（藍色）
       const spBarW = barW;
-      const spBar = hpBar(this, x - spBarW / 2, y + 8, spBarW, 7, 0, COLORS.mp);
-      const spTxt = pixelText(this, x, y + 8, 'SP 0', 9, '#88bbff');
+      const spBar = hpBar(this, x - spBarW / 2, y + 78, spBarW, 17, 0, COLORS.mp);
+      const spTxt = pixelText(this, x, y + 78, 'SP 0', FS.statNum, '#88bbff');
       // 格檔圖示
-      const guardTxt = pixelText(this, x, y + 24, '', 9, '#66ccff');
+      const guardTxt = pixelText(this, x, y + 114, '', FS.statNum, '#66ccff');
       // 技能名稱提示（常態隱藏）
-      const skillTxt = pixelText(this, x, y + 38, h.class.skill?.name || '', 9, '#ffaa44').setAlpha(0);
+      const skillTxt = pixelText(this, x, y + 143, h.class.skill?.name || '', FS.statNum, '#ffaa44').setAlpha(0);
 
-      return { hero: h, x, y, card, bar, hpTxt, spBar, spTxt, guardTxt, skillTxt };
+      return { hero: h, x, y, card, portrait, bar, hpTxt, spBar, spTxt, guardTxt, skillTxt };
     });
   }
 
   // ── 底部按鈕列 ──────────────────────────────────────────
   buildButtons(W, H) {
-    const btnY = H - 95;
-    const btnW = 98;
-    const btnH = 48;
+    const btnY = H - 228;
+    const btnW = 235;
+    const btnH = 115;
     const gap = (W - btnW * 4) / 5;
     const x1 = gap + btnW / 2;
 
@@ -147,7 +156,7 @@ export default class CombatScene extends Phaser.Scene {
     this.guardBtn = button(this, x1 + btnW + gap, btnY, '🛡 格檔', () => this.onGuard(),   { w: btnW, h: btnH, fill: 0x1c2c3c });
     this.spBtn    = button(this, x1 + (btnW + gap) * 2, btnY, '✦ 技能', () => this.onSpSkill(), { w: btnW, h: btnH, fill: 0x2c1c3c });
     this.itemBtn  = button(this, x1 + (btnW + gap) * 3, btnY, '🎒 道具', () => this.onItems(),   { w: btnW, h: btnH, fill: 0x1c2c1c });
-    this.cancelBtn = button(this, W / 2, btnY, '取消', () => this.cancelTargeting(), { w: 160, h: btnH, fill: 0x2c1c1c });
+    this.cancelBtn = button(this, W / 2, btnY, '取消', () => this.cancelTargeting(), { w: 384, h: btnH, fill: 0x2c1c1c });
 
     this.showButtons(false);
     this.cancelBtn.setVisible(false);
@@ -155,12 +164,12 @@ export default class CombatScene extends Phaser.Scene {
 
   // ── 紀錄面板 ────────────────────────────────────────────
   buildLog(W, H) {
-    const logY = 360;
-    const hdrH = 24;
-    const logH = 200;   // 含 header 總高度
+    const logY = 720;
+    const hdrH = 58;
+    const logH = 400;   // 含 header 總高度
     const cntH = logH - hdrH;
-    const logX = 10;
-    const logW = W - 20;
+    const logX = 24;
+    const logW = W - 48;
     const cntY = logY + hdrH;
 
     this._logBaseY  = logY + logH - 4;  // text y 預設值（origin bottom）
@@ -170,12 +179,12 @@ export default class CombatScene extends Phaser.Scene {
     // ── 標題列（動畫期間一併隱藏）
     const hdrBg = this.add.rectangle(W / 2, logY + hdrH / 2, logW, hdrH, 0x181834, 0.95)
       .setStrokeStyle(1, 0x333366);
-    const hdrTxt = this.add.text(logX + 8, logY + hdrH / 2, '⚔ 戰鬥紀錄', {
-      fontFamily: FONT, fontSize: '12px', color: '#6677bb',
+    const hdrTxt = this.add.text(logX + 19, logY + hdrH / 2, '⚔ 戰鬥紀錄', {
+      fontFamily: FONT, fontSize: `${FS.cardName}px`, color: '#6677bb',
       padding: { top: 2, bottom: 2, left: 2, right: 2 },
     }).setOrigin(0, 0.5);
-    this.logToggleBtn = button(this, W - 26, logY + hdrH / 2, '▼', () => this.toggleLog(),
-      { w: 30, h: hdrH - 4, size: 11, fill: 0x181834, edge: 0x333366 });
+    this.logToggleBtn = button(this, W - 62, logY + hdrH / 2, '▼', () => this.toggleLog(),
+      { w: 72, h: hdrH - 10, size: FS.nodeLabel, fill: 0x181834, edge: 0x333366 });
     this.logToggleBtn.setAlpha(0.8);
     this.logHeaderObjs = [hdrBg, hdrTxt, this.logToggleBtn];
 
@@ -184,9 +193,9 @@ export default class CombatScene extends Phaser.Scene {
       .setStrokeStyle(1, 0x272748);
 
     // 文字：從底部往上排，確保新條目永遠在最下方
-    this.logText = this.add.text(logX + 6, this._logBaseY, '', {
-      fontFamily: FONT, fontSize: '11px', color: '#9090b8',
-      wordWrap: { width: logW - 12 }, lineSpacing: 3,
+    this.logText = this.add.text(logX + 14, this._logBaseY, '', {
+      fontFamily: FONT, fontSize: `${FS.nodeLabel}px`, color: '#9090b8',
+      wordWrap: { width: logW - 29 }, lineSpacing: 7,
       padding: { top: 2, bottom: 2, left: 0, right: 0 },
     }).setOrigin(0, 1);
 
@@ -241,8 +250,8 @@ export default class CombatScene extends Phaser.Scene {
     const { width: W } = this.scale;
     this.trackC.removeAll(true);
     const n = this.order.length;
-    const gap = 4;
-    const chipW = Math.min(54, (W - 12 - (n - 1) * gap) / n);
+    const gap = 8;
+    const chipW = Math.min(130, (W - 12 - (n - 1) * gap) / n);
     const total = n * chipW + (n - 1) * gap;
     const x0 = W / 2 - total / 2 + chipW / 2;
 
@@ -253,12 +262,12 @@ export default class CombatScene extends Phaser.Scene {
       const done = k >= n - this.turnIdx;
       const x = x0 + k * (chipW + gap);
       const fill = o.side === 'enemy' ? 0x4a2436 : 0x26324a;
-      const rect = this.add.rectangle(x, 70, chipW, 32, cur ? (o.side === 'enemy' ? 0x6a2440 : 0x35508a) : fill)
+      const rect = this.add.rectangle(x, 140, chipW, 64, cur ? (o.side === 'enemy' ? 0x6a2440 : 0x35508a) : fill)
         .setStrokeStyle(cur ? 3 : 1.5, cur ? 0xffcc44 : 0x44486a)
         .setAlpha(dead ? 0.18 : (done ? 0.38 : 1));
-      const nameTxt = pixelText(this, x, 64, this.shortName(o), 10, o.side === 'enemy' ? '#ffbbcc' : '#cfe0ff')
+      const nameTxt = pixelText(this, x, 130, this.shortName(o), FS.trackName, o.side === 'enemy' ? '#ffbbcc' : '#cfe0ff')
         .setAlpha(dead ? 0.18 : (done ? 0.5 : 1));
-      const initTxt = pixelText(this, x, 76, `${o.init}`, 8, o.ref.element.color)
+      const initTxt = pixelText(this, x, 156, `${o.init}`, FS.trackInit, o.ref.element.color)
         .setAlpha(dead ? 0.18 : (done ? 0.5 : 1));
       this.trackC.add([rect, nameTxt, initTxt]);
     }
@@ -389,7 +398,7 @@ export default class CombatScene extends Phaser.Scene {
     const u = this.uiOf(this._atkTarget);
     if (!u) return;
     const cy = u.y - u.box / 2 - 8;
-    this._cursorTxt = pixelText(this, u.x, cy, '▼', 14, '#ffe066').setDepth(50);
+    this._cursorTxt = pixelText(this, u.x, cy, '▼', FS.targetCursor, '#ffe066').setDepth(50);
     this._cursorTween = this.tweens.add({
       targets: this._cursorTxt, y: cy - 6,
       duration: 380, ease: 'Sine.inOut', yoyo: true, repeat: -1,
@@ -838,7 +847,9 @@ export default class CombatScene extends Phaser.Scene {
     for (const u of this.heroUI) {
       u.bar.set(u.hero.hp / u.hero.maxHp);
       u.hpTxt.setText(`${u.hero.hp}/${u.hero.maxHp}`);
-      u.card.setAlpha(u.hero.hp <= 0 ? 0.35 : 1);
+      const heroAlpha = u.hero.hp <= 0 ? 0.35 : 1;
+      u.card.setAlpha(heroAlpha);
+      if (u.portrait) u.portrait.setAlpha(heroAlpha);
       this.refreshSP(u.hero);
     }
   }
@@ -930,20 +941,20 @@ export default class CombatScene extends Phaser.Scene {
 
     // 暗色遮罩
     this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65).setDepth(1001);
-    pixelText(this, W / 2, H / 2 - drops.length * 36 - 60, `勝利！ +${gold} 金幣`, 28, '#ffee88').setDepth(1002);
-    pixelText(this, W / 2, H / 2 - drops.length * 36 - 30, '獲得道具：', 14, COLORS.dim).setDepth(1002);
+    pixelText(this, W / 2, H / 2 - drops.length * 86 - 144, `勝利！ +${gold} 金幣`, FS.victoryGold, '#ffee88').setDepth(1002);
+    pixelText(this, W / 2, H / 2 - drops.length * 86 - 72, '獲得道具：', FS.toastMsg, COLORS.dim).setDepth(1002);
 
     drops.forEach((item, i) => {
-      const y = H / 2 - (drops.length - 1) * 36 + i * 72 - 30;
-      pixelText(this, W / 2, y, item.name, 18, rarityColor(item.rarity)).setDepth(1002);
-      pixelText(this, W / 2, y + 18, item.desc, 12, COLORS.dim).setDepth(1002);
+      const y = H / 2 - (drops.length - 1) * 86 + i * 173 - 72;
+      pixelText(this, W / 2, y, item.name, FS.resultStats, rarityColor(item.rarity)).setDepth(1002);
+      pixelText(this, W / 2, y + 43, item.desc, FS.cardName, COLORS.dim).setDepth(1002);
     });
 
     const inv = this.run.inventory || [];
     const canAdd = inv.length + drops.length <= 12;
 
     const btnLabel = canAdd ? '全部收取' : `背包已滿(${inv.length}/12)`;
-    const collectBtn = button(this, W / 2, H / 2 + drops.length * 36 + 20, btnLabel, () => {
+    const collectBtn = button(this, W / 2, H / 2 + drops.length * 86 + 48, btnLabel, () => {
       if (canAdd) {
         drops.forEach((d) => this.run.inventory.push(d));
       } else {
@@ -951,12 +962,12 @@ export default class CombatScene extends Phaser.Scene {
         drops.slice(0, 12 - inv.length).forEach((d) => this.run.inventory.push(d));
       }
       this.scene.start('Map');
-    }, { w: 200, h: 50 });
+    }, { w: 480, h: 120 });
     collectBtn.setDepth(1002);
 
-    const skipBtn = button(this, W / 2, H / 2 + drops.length * 36 + 80, '略過', () => {
+    const skipBtn = button(this, W / 2, H / 2 + drops.length * 86 + 192, '略過', () => {
       this.scene.start('Map');
-    }, { w: 120, h: 40, fill: 0x1c1c2c });
+    }, { w: 288, h: 96, fill: 0x1c1c2c });
     skipBtn.setDepth(1002);
   }
 
@@ -971,7 +982,7 @@ export default class CombatScene extends Phaser.Scene {
     this.busy = true;
     this.showButtons(false);
     this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setDepth(1001);
-    pixelText(this, W / 2, H / 2, msg, 36, color).setDepth(1002);
+    pixelText(this, W / 2, H / 2, msg, FS.winMsg, color).setDepth(1002);
     this.time.delayedCall(1400, then);
   }
 }
