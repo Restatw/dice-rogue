@@ -18,7 +18,7 @@ export const CLASSES = {
       const m = lerp(0.8, 1.6, t) * (ctx.combo.id !== 'none' ? 1.15 : 1.0);
       return { mult: m, note: `怒氣 ${ctx.sum}點${ctx.combo.id !== 'none' ? ' +連線' : ''}` };
     },
-    skill: { name: '怒嘯斬', desc: '對所有敵人造成 120% 傷害', id: 'warrior_slash' },
+    skill: { name: '重斬', desc: '對所有敵人造成 120% 傷害', id: 'warrior_slash' },
   },
 
   mage: {
@@ -32,9 +32,9 @@ export const CLASSES = {
       // 高階 +40%，中階 +15%；連線 +25%
       const tierBonus = ctx.tier.id === 'high' ? 1.4 : ctx.tier.id === 'mid' ? 1.15 : 1.0;
       const comboBonus = ctx.combo.id !== 'none' ? 1.25 : 1.0;
-      return { mult: tierBonus * comboBonus, note: `${ctx.tier.name}${ctx.combo.id !== 'none' ? ' +連線爆發' : ''}` };
+      return { mult: tierBonus * comboBonus, note: `${ctx.tier.label}${ctx.combo.id !== 'none' ? ' +連線爆發' : ''}` };
     },
-    skill: { name: '魔法爆炎', desc: '對所有敵人造成 150% 魔法傷害', id: 'mage_blast' },
+    skill: { name: '魔炮', desc: '對所有敵人造成 150% 魔法傷害', id: 'mage_blast' },
   },
 
   rogue: {
@@ -51,7 +51,7 @@ export const CLASSES = {
       else if (ctx.combo.id !== 'none') m = 1.5;
       return { mult: m, note: ctx.combo.id !== 'none' ? `連線暴擊 ×${m.toFixed(1)}` : '普通攻擊' };
     },
-    skill: { name: '神速四連', desc: '對單體連擊 4 次（每次 60% 傷害）', id: 'rogue_quad' },
+    skill: { name: '神速', desc: '對單體連擊 4 次（每次 60% 傷害）', id: 'rogue_quad' },
   },
 
   priest: {
@@ -67,7 +67,7 @@ export const CLASSES = {
       const comboBonus = ctx.combo.id !== 'none' ? 1.2 : 1.0;
       return { mult: tierBonus * comboBonus, note: ctx.tier.id === 'high' ? '聖光加護' : '' };
     },
-    skill: { name: '大治癒術', desc: '治療全隊各 40% 最大 HP', id: 'priest_heal' },
+    skill: { name: '治癒', desc: '治療全隊各 40% 最大 HP', id: 'priest_heal' },
   },
 };
 

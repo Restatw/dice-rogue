@@ -1,4 +1,5 @@
 import { pixelText, button, hpBar, COLORS, FONT } from '../ui/widgets.js';
+import { openChest } from '../ui/chestAnim.js';
 import { DiceRoller } from '../ui/dice.js';
 import { SFX } from '../audio/sfx.js';
 import { getRun } from '../core/runState.js';
@@ -250,31 +251,41 @@ export default class CombatScene extends Phaser.Scene {
     const { width: W } = this.scale;
     this.trackC.removeAll(true);
     const n = this.order.length;
-    const gap = 8;
-    const chipW = Math.min(130, (W - 12 - (n - 1) * gap) / n);
-    const total = n * chipW + (n - 1) * gap;
-    const x0 = W / 2 - total / 2 + chipW / 2;
 
+    // 只顯示存活成員，從當前 turnIdx 開始依序排列
+    const display = [];
     for (let k = 0; k < n; k++) {
       const o = this.order[(this.turnIdx + k) % n];
-      const dead = o.ref.hp <= 0;
-      const cur = k === 0 && !dead;
-      const done = k >= n - this.turnIdx;
-      const x = x0 + k * (chipW + gap);
-      const fill = o.side === 'enemy' ? 0x4a2436 : 0x26324a;
-      const rect = this.add.rectangle(x, 140, chipW, 64, cur ? (o.side === 'enemy' ? 0x6a2440 : 0x35508a) : fill)
-        .setStrokeStyle(cur ? 3 : 1.5, cur ? 0xffcc44 : 0x44486a)
-        .setAlpha(dead ? 0.18 : (done ? 0.38 : 1));
-      const nameTxt = pixelText(this, x, 130, this.shortName(o), FS.trackName, o.side === 'enemy' ? '#ffbbcc' : '#cfe0ff')
-        .setAlpha(dead ? 0.18 : (done ? 0.5 : 1));
-      const initTxt = pixelText(this, x, 156, `${o.init}`, FS.trackInit, o.ref.element.color)
-        .setAlpha(dead ? 0.18 : (done ? 0.5 : 1));
-      this.trackC.add([rect, nameTxt, initTxt]);
+      if (o.ref.hp > 0) {
+        display.push({ o, isCurrent: display.length === 0, done: k >= n - this.turnIdx });
+      }
     }
 
-    if (animate) {
-      // slideSlots：本次實際跳過幾個位置（含死亡跳格）
-      this.trackC.x = slideSlots * (chipW + gap);
+    const dn = display.length;
+    if (dn === 0) return;
+
+    const gap = 8;
+    const chipW = Math.min(130, (W - 12 - (dn - 1) * gap) / dn);
+    const total = dn * chipW + (dn - 1) * gap;
+    const x0 = W / 2 - total / 2 + chipW / 2;
+
+    display.forEach(({ o, isCurrent, done }, i) => {
+      const x = x0 + i * (chipW + gap);
+      const fill = o.side === 'enemy' ? 0x4a2436 : 0x26324a;
+      const rect = this.add.rectangle(x, 140, chipW, 64,
+        isCurrent ? (o.side === 'enemy' ? 0x6a2440 : 0x35508a) : fill)
+        .setStrokeStyle(isCurrent ? 3 : 1.5, isCurrent ? 0xffcc44 : 0x44486a)
+        .setAlpha(done ? 0.38 : 1);
+      const nameTxt = pixelText(this, x, 130, this.shortName(o), FS.trackName,
+        o.side === 'enemy' ? '#ffbbcc' : '#cfe0ff').setAlpha(done ? 0.5 : 1);
+      const initTxt = pixelText(this, x, 156, `${o.init}`, FS.trackInit, o.ref.element.color)
+        .setAlpha(done ? 0.5 : 1);
+      this.trackC.add([rect, nameTxt, initTxt]);
+    });
+
+    if (animate && dn > 0) {
+      const chipWAnim = Math.min(130, (W - 12 - (dn - 1) * gap) / dn);
+      this.trackC.x = slideSlots * (chipWAnim + gap);
       this.tweens.add({ targets: this.trackC, x: 0, duration: 220, ease: 'Cubic.out' });
     } else {
       this.trackC.x = 0;
@@ -925,13 +936,9 @@ export default class CombatScene extends Phaser.Scene {
       return this.endFlash('通關！', '#ffee88', () => this.scene.start('Result'));
     }
 
-    // 計算掉落
+    // 計算掉落，不論有無道具都顯示寶箱
     const drops = rollDrops(this.run.rng, this.nodeType);
-    if (drops.length > 0) {
-      this.showDropOverlay(drops, gold);
-    } else {
-      this.endFlash(`勝利！ +${gold}G`, '#ffee88', () => this.scene.start('Map'));
-    }
+    this.showDropOverlay(drops, gold);
   }
 
   showDropOverlay(drops, gold) {
@@ -940,35 +947,58 @@ export default class CombatScene extends Phaser.Scene {
     this.showButtons(false);
 
     // 暗色遮罩
-    this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65).setDepth(1001);
-    pixelText(this, W / 2, H / 2 - drops.length * 86 - 144, `勝利！ +${gold} 金幣`, FS.victoryGold, '#ffee88').setDepth(1002);
-    pixelText(this, W / 2, H / 2 - drops.length * 86 - 72, '獲得道具：', FS.toastMsg, COLORS.dim).setDepth(1002);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.72).setDepth(1001);
 
+    // 寶箱正中央，點擊後播開箱動畫，動畫結束再顯示金幣＋道具清單
+    openChest(this, W / 2, H / 2, drops, () => this._showDropList(drops, gold), 1005);
+  }
+
+  _showDropList(drops, gold) {
+    const { width: W, height: H } = this.scale;
+
+    // 計算總高度，使整塊內容垂直置中
+    const itemH = 160;
+    const totalH = 80 + drops.length * itemH + 60 + 130; // 標題 + 道具 + 間距 + 按鈕
+    let y = H / 2 - totalH / 2;
+
+    // 勝利標題＋金幣
+    const titleObj = pixelText(this, W / 2, y, `⚔ 勝利！`, FS.victoryGold, '#ffee88')
+      .setDepth(1006).setAlpha(0);
+    this.tweens.add({ targets: titleObj, alpha: 1, duration: 300 });
+    y += 80;
+
+  // 勝利標題＋金幣
+    const coinObj = pixelText(this, W / 2, y, `+${gold} 金幣`, FS.victoryGold, '#ffee88')
+      .setDepth(1006).setAlpha(0);
+    this.tweens.add({ targets: coinObj, alpha: 1, duration: 300 });
+    y += 80;
+
+    // 道具列表
     drops.forEach((item, i) => {
-      const y = H / 2 - (drops.length - 1) * 86 + i * 173 - 72;
-      pixelText(this, W / 2, y, item.name, FS.resultStats, rarityColor(item.rarity)).setDepth(1002);
-      pixelText(this, W / 2, y + 43, item.desc, FS.cardName, COLORS.dim).setDepth(1002);
+      const nameObj = pixelText(this, W / 2, y, item.name, FS.resultStats, rarityColor(item.rarity))
+        .setDepth(1006).setAlpha(0);
+      const descObj = pixelText(this, W / 2, y + 52, item.desc, FS.cardName, COLORS.dim)
+        .setDepth(1006).setAlpha(0);
+      this.tweens.add({ targets: [nameObj, descObj], alpha: 1, duration: 300, delay: 60 + i * 80 });
+      y += itemH;
     });
 
+    y += 60;
+
+    // 收取按鈕（無略過）
     const inv = this.run.inventory || [];
     const canAdd = inv.length + drops.length <= 12;
-
     const btnLabel = canAdd ? '全部收取' : `背包已滿(${inv.length}/12)`;
-    const collectBtn = button(this, W / 2, H / 2 + drops.length * 86 + 48, btnLabel, () => {
+    const collectBtn = button(this, W / 2, y, btnLabel, () => {
       if (canAdd) {
         drops.forEach((d) => this.run.inventory.push(d));
       } else {
-        // 只收取能放入的數量
         drops.slice(0, 12 - inv.length).forEach((d) => this.run.inventory.push(d));
       }
       this.scene.start('Map');
     }, { w: 480, h: 120 });
-    collectBtn.setDepth(1002);
-
-    const skipBtn = button(this, W / 2, H / 2 + drops.length * 86 + 192, '略過', () => {
-      this.scene.start('Map');
-    }, { w: 288, h: 96, fill: 0x1c1c2c });
-    skipBtn.setDepth(1002);
+    collectBtn.setDepth(1006).setAlpha(0);
+    this.tweens.add({ targets: collectBtn, alpha: 1, duration: 300, delay: 200 });
   }
 
   lose() {
